@@ -1,0 +1,143 @@
+{
+  "name": "codedoc",
+  "displayName": "CodeDoc",
+  "description": "Smart documentation assistant with AI chatbot and code visualization",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codedoc.openChat",
+        "title": "Open CodeDoc Chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "codedoc.clearChat",
+        "title": "Clear Chat History",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "codedoc.visualizeCode",
+        "title": "Visualize Code"
+      },
+      {
+        "command": "codedoc.generateDocs",
+        "title": "Generate Docs"
+      },
+      {
+        "command": "codedoc.configureExtension",
+        "title": "Configure CodeDoc Settings",
+        "icon": "$(settings-gear)"
+      }
+    ],
+    "views": {
+      "codedoc-sidebar": [
+        {
+          "type": "webview",
+          "id": "codedoc.mainView",
+          "name": "CodeDoc",
+          "when": "true"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codedoc-sidebar",
+          "title": "CodeDoc",
+          "icon": "$(book)"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "codedoc.clearChat",
+          "when": "view == codedoc.mainView",
+          "group": "navigation"
+        },
+        {
+          "command": "codedoc.generateDocs",
+          "when": "view == codedoc.mainView",
+          "group": "navigation"
+        },
+        {
+          "command": "codedoc.visualizeCode",
+          "when": "view == codedoc.mainView",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "CodeDoc Configuration",
+      "properties": {
+        "codedoc.openaiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API Key for generating documentation and code analysis",
+          "scope": "application"
+        },
+        "codedoc.openaiModel": {
+          "type": "string",
+          "default": "gpt-4",
+          "description": "OpenAI model to use for code analysis",
+          "enum": [
+            "gpt-4",
+            "gpt-4-turbo",
+            "gpt-3.5-turbo",
+            "gpt-4o",
+            "gpt-4o-mini"
+          ],
+          "enumDescriptions": [
+            "GPT-4 - Most capable model, best for complex analysis",
+            "GPT-4 Turbo - Faster GPT-4 with improved efficiency",
+            "GPT-3.5 Turbo - Fast and cost-effective for simple tasks",
+            "GPT-4o - Latest optimized model with multimodal capabilities",
+            "GPT-4o Mini - Compact version of GPT-4o for quick responses"
+          ],
+          "scope": "application"
+        },
+        "codedoc.maxTokens": {
+          "type": "number",
+          "default": 2000,
+          "description": "Maximum number of tokens to use in OpenAI responses",
+          "minimum": 100,
+          "maximum": 4000,
+          "scope": "application"
+        },
+        "codedoc.temperature": {
+          "type": "number",
+          "default": 0.3,
+          "description": "Temperature setting for OpenAI responses (0.0 = deterministic, 1.0 = creative)",
+          "minimum": 0,
+          "maximum": 1,
+          "scope": "application"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "16.x",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "marked": "^16.2.1",
+    "openai": "^5.19.1"
+  }
+}
