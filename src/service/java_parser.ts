@@ -84,13 +84,11 @@ export class JavaParser {
         }
 
         const relationships = this.extractRelationships(classes);
-        
         return { classes, relationships };
     }
 
     private async findJavaFiles(rootPath: string): Promise<string[]> {
         const javaFiles: string[] = [];
-        
         const searchPattern = new vscode.RelativePattern(rootPath, '**/*.java');
         const files = await vscode.workspace.findFiles(searchPattern);
         
@@ -100,11 +98,8 @@ export class JavaParser {
     private async parseJavaFile(filePath: string): Promise<JavaClass | null> {
         const content = fs.readFileSync(filePath, 'utf-8');
         const fileName = path.basename(filePath, '.java');
-        
-        // Simple regex-based parsing (you can enhance this with proper AST parsing)
         const packageMatch = content.match(/package\s+([\w.]+);/);
         const packageName = packageMatch ? packageMatch[1] : '';
-        
         const imports = this.extractImports(content);
         const classMatch = content.match(/(?:public\s+)?(?:abstract\s+)?(?:final\s+)?class\s+(\w+)(?:\s+extends\s+(\w+))?(?:\s+implements\s+([\w\s,]+))?/);
         
@@ -120,8 +115,6 @@ export class JavaParser {
         const fields = this.extractFields(content);
         const annotations = this.extractClassAnnotations(content);
         const dependencies = this.extractDependencies(content, imports);
-
-        // Check if this is a Spring controller
         const isController = this.isSpringController(annotations);
         const baseMapping = this.extractBaseMapping(annotations);
         const endpoints = isController ? this.extractEndpoints(methods, baseMapping) : [];
@@ -214,6 +207,7 @@ export class JavaParser {
         if (!parametersStr.trim()) {
             return [];
         }
+
 
         return parametersStr.split(',').map(param => {
             const parts = param.trim().split(/\s+/);
@@ -310,7 +304,6 @@ export class JavaParser {
     private extractDependencies(content: string, imports: string[]): string[] {
         const dependencies: string[] = [];
         
-        // Spring-specific annotations that indicate dependencies
         const springAnnotations = ['@Autowired', '@Inject', '@Resource', '@Service', '@Repository', '@Component', '@Controller', '@RestController'];
         
         for (const annotation of springAnnotations) {
@@ -318,8 +311,6 @@ export class JavaParser {
                 dependencies.push(annotation.substring(1));
             }
         }
-
-        // Extract field injection dependencies
         const fieldInjectionRegex = /@(?:Autowired|Inject|Resource)\s*(?:private|public|protected)?\s+(\w+)/g;
         let match;
         while ((match = fieldInjectionRegex.exec(content)) !== null) {
@@ -333,7 +324,6 @@ export class JavaParser {
         const relationships: CodeRelationship[] = [];
 
         for (const javaClass of classes) {
-            // Inheritance relationships
             if (javaClass.extends) {
                 relationships.push({
                     from: javaClass.name,
@@ -342,7 +332,6 @@ export class JavaParser {
                 });
             }
 
-            // Interface implementation
             for (const impl of javaClass.implements) {
                 relationships.push({
                     from: javaClass.name,
@@ -351,7 +340,6 @@ export class JavaParser {
                 });
             }
 
-            // Method calls and dependencies
             for (const method of javaClass.methods) {
                 for (const call of method.calls) {
                     const targetClass = this.findClassForMethod(classes, call);
@@ -365,8 +353,6 @@ export class JavaParser {
                     }
                 }
             }
-
-            // Spring dependency injection
             for (const field of javaClass.fields) {
                 if (field.annotations.some(ann => ann.includes('@Autowired') || ann.includes('@Inject'))) {
                     relationships.push({
@@ -377,7 +363,6 @@ export class JavaParser {
                 }
             }
         }
-
         return relationships;
     }
 
@@ -407,8 +392,6 @@ export class JavaParser {
             if (pathMatch) {
                 return pathMatch[1];
             }
-            
-            // Handle cases like @RequestMapping("/api/users")
             const simplePathMatch = requestMappingAnnotation.match(/@RequestMapping\s*\(\s*["']([^"']+)["']/);
             if (simplePathMatch) {
                 return simplePathMatch[1];
@@ -458,7 +441,6 @@ export class JavaParser {
         let produces: string | undefined;
         let consumes: string | undefined;
 
-        // Determine HTTP method from annotation type
         switch (mappingType) {
             case '@PostMapping':
                 httpMethod = 'POST';
@@ -473,15 +455,12 @@ export class JavaParser {
                 httpMethod = 'PATCH';
                 break;
             case '@RequestMapping':
-                // Extract method from RequestMapping
                 const methodMatch = annotation.match(/method\s*=\s*RequestMethod\.(\w+)/);
                 if (methodMatch) {
                     httpMethod = methodMatch[1];
                 }
                 break;
         }
-
-        // Extract path
         const pathMatches = [
             /(?:value\s*=\s*|path\s*=\s*)["']([^"']+)["']/,
             new RegExp(`@${mappingType.substring(1)}\\s*\\(\\s*["']([^"']+)["']`)
@@ -495,13 +474,10 @@ export class JavaParser {
             }
         }
 
-        // Extract produces
         const producesMatch = annotation.match(/produces\s*=\s*["']([^"']+)["']/);
         if (producesMatch) {
             produces = producesMatch[1];
         }
-
-        // Extract consumes
         const consumesMatch = annotation.match(/consumes\s*=\s*["']([^"']+)["']/);
         if (consumesMatch) {
             consumes = consumesMatch[1];
@@ -522,7 +498,6 @@ export class JavaParser {
         
         const cleanBase = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
         const cleanMethod = methodPath.startsWith('/') ? methodPath : `/${methodPath}`;
-        
         return cleanBase + cleanMethod;
     }
 }

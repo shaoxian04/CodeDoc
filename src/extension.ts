@@ -8,46 +8,35 @@ export function activate(context: vscode.ExtensionContext) {
 
     const javaParser = new JavaParser();
     const openaiService = new OpenAIService();
-
-    // Register the main view provider
     const mainProvider = new MainViewProvider(context.extensionUri);
     
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider('codedoc.mainView', mainProvider)
     );
-
-    // Register commands
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.openChat', () => {
             vscode.commands.executeCommand('workbench.view.extension.codedoc-sidebar');
         })
     );
-
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.clearChat', () => {
             mainProvider.clearChat();
         })
     );
-
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.generateDocs', async () => {
             try {
                 vscode.window.showInformationMessage('Generating documentation...');
-                // Add a small delay to ensure Java language server is ready
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 const structure = await javaParser.parseWorkspace();
-                
+            
                 if (structure.classes.length === 0) {
                     vscode.window.showWarningMessage('No Java classes found in the workspace');
                     return;
                 }
-
                 const overview = await openaiService.generateProjectOverview(structure);
-                
-                // Send documentation to webview
                 mainProvider.showProjectDocumentation(overview);
                 vscode.window.showInformationMessage('Documentation generated successfully!');
-                
             } catch (error) {
                 if (error instanceof Error && error.message.includes('Client is not running')) {
                     vscode.window.showErrorMessage('Java language server is not ready yet. Please wait a moment and try again.');
@@ -62,7 +51,6 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('codedoc.visualizeCode', async () => {
             try {
                 vscode.window.showInformationMessage('Analyzing code structure...');
-                // Add a small delay to ensure Java language server is ready
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 const structure = await javaParser.parseWorkspace();
                 
@@ -70,9 +58,7 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.window.showWarningMessage('No Java classes found in the workspace');
                     return;
                 }
-
                 mainProvider.updateVisualization(structure);
-                // Focus on the main view
                 await vscode.commands.executeCommand('codedoc.mainView.focus');
                 vscode.window.showInformationMessage('Code visualization updated!');
                 
@@ -91,7 +77,6 @@ export function activate(context: vscode.ExtensionContext) {
             const result = await showConfigurationQuickPick();
             if (result) {
                 vscode.window.showInformationMessage('Configuration updated successfully!');
-                // Reinitialize OpenAI service with new settings
                 openaiService.reinitialize();
             }
         })
@@ -101,25 +86,20 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('codedoc.generateClassDocs', async () => {
             try {
                 vscode.window.showInformationMessage('Generating class documentation...');
-                // Add a small delay to ensure Java language server is ready
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                // Get the active text editor
                 const editor = vscode.window.activeTextEditor;
                 if (!editor) {
                     vscode.window.showWarningMessage('No active editor found. Please open a Java file and select some code.');
                     return;
                 }
                 
-                // Get selected text or entire file content
+
                 let code = '';
                 let fileName = '';
                 if (editor.selection.isEmpty) {
-                    // No selection, use entire file
                     code = editor.document.getText();
                     fileName = editor.document.fileName;
                 } else {
-                    // Use selected text
                     code = editor.document.getText(editor.selection);
                     fileName = editor.document.fileName;
                 }
@@ -130,8 +110,6 @@ export function activate(context: vscode.ExtensionContext) {
                 }
 
                 const documentation = await openaiService.generateCodeExplanation(code, fileName);
-                
-                // Send documentation to webview
                 mainProvider.showClassDocumentation(documentation);
                 vscode.window.showInformationMessage('Class documentation generated successfully!');
                 
@@ -153,7 +131,6 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             try {
-                // Create a new document with the documentation
                 const doc = await vscode.workspace.openTextDocument({
                     content: content,
                     language: content.startsWith('#') ? '``' : undefined  // Use markdown language if content is markdown
@@ -166,10 +143,8 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }));
 
-    // Set context for when views are enabled
     vscode.commands.executeCommand('setContext', 'codedoc.chatViewEnabled', true);
 
-    // Auto-parse on workspace changes with debounce and error handling
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.java');
     watcher.onDidChange(() => {
         // Debounce the parsing to avoid too frequent updates
@@ -181,7 +156,6 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }, 2000);
     });
-    
     context.subscriptions.push(watcher);
 }
 
@@ -189,9 +163,6 @@ export function deactivate() {
     console.log('CodeDoc extension is deactivated');
 }
 
-/**
- * Shows a configuration quick pick dialog for OpenAI settings
- */
 async function showConfigurationQuickPick(): Promise<boolean> {
     const config = vscode.workspace.getConfiguration('codedoc');
     const currentApiKey = config.get<string>('openaiApiKey', '');
@@ -253,9 +224,6 @@ async function showConfigurationQuickPick(): Promise<boolean> {
     }
 }
 
-/**
- * Configure OpenAI API Key
- */
 async function configureApiKey(): Promise<boolean> {
     const apiKey = await vscode.window.showInputBox({
         prompt: 'Enter your OpenAI API Key',
@@ -286,9 +254,6 @@ async function configureApiKey(): Promise<boolean> {
     return false;
 }
 
-/**
- * Configure OpenAI Model
- */
 async function configureModel(): Promise<boolean> {
     const models = [
         { label: 'GPT-4', description: 'Most capable model, best for complex analysis', value: 'gpt-4' },
@@ -314,9 +279,6 @@ async function configureModel(): Promise<boolean> {
     return false;
 }
 
-/**
- * Configure Max Tokens
- */
 async function configureMaxTokens(): Promise<boolean> {
     const maxTokens = await vscode.window.showInputBox({
         prompt: 'Enter maximum tokens for OpenAI responses',
@@ -330,7 +292,6 @@ async function configureMaxTokens(): Promise<boolean> {
             return null;
         }
     });
-
     if (maxTokens) {
         await vscode.workspace.getConfiguration('codedoc').update(
             'maxTokens', 
@@ -342,9 +303,6 @@ async function configureMaxTokens(): Promise<boolean> {
     return false;
 }
 
-/**
- * Configure Temperature
- */
 async function configureTemperature(): Promise<boolean> {
     const temperature = await vscode.window.showInputBox({
         prompt: 'Enter temperature for OpenAI responses (0.0 = deterministic, 1.0 = creative)',

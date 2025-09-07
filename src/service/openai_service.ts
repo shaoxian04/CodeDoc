@@ -25,10 +25,6 @@ export class OpenAIService {
             });
         }
     }
-
-    /**
-     * Reinitialize the OpenAI service with updated configuration
-     */
     public async reinitialize(): Promise<void> {
         await this.initializeOpenAI();
     }
@@ -246,8 +242,6 @@ export class OpenAIService {
         let prompt = `Analyze this Java/Spring project structure:\n\n`;
 
         prompt += `Total Classes: ${structure.classes.length}\n\n`;
-
-        // Group classes by package
         const packageGroups: { [key: string]: JavaClass[] } = {};
         structure.classes.forEach(cls => {
             const pkg = cls.package || 'default';
@@ -262,8 +256,6 @@ export class OpenAIService {
             prompt += `- ${pkg}: ${classes.length} classes\n`;
         });
         prompt += '\n';
-
-        // Spring components
         const springComponents = structure.classes.filter(cls => 
             cls.annotations.some(ann => 
                 ann.includes('@Service') || 
@@ -273,7 +265,6 @@ export class OpenAIService {
                 ann.includes('@RestController')
             )
         );
-
         if (springComponents.length > 0) {
             prompt += `Spring Components:\n`;
             springComponents.forEach(comp => {
@@ -288,8 +279,6 @@ export class OpenAIService {
             });
             prompt += '\n';
         }
-
-        // Key relationships
         prompt += `Relationships:\n`;
         const relationshipCounts = structure.relationships.reduce((acc, rel) => {
             acc[rel.type] = (acc[rel.type] || 0) + 1;
@@ -299,10 +288,8 @@ export class OpenAIService {
         Object.entries(relationshipCounts).forEach(([type, count]) => {
             prompt += `- ${type}: ${count} connections\n`;
         });
-        
-        // Detailed dependency information
+
         prompt += '\nDetailed Dependencies:\n';
-        // Group relationships by source class
         const relationshipsBySource: { [key: string]: CodeRelationship[] } = {};
         structure.relationships.forEach(rel => {
             if (!relationshipsBySource[rel.from]) {
@@ -310,8 +297,6 @@ export class OpenAIService {
             }
             relationshipsBySource[rel.from].push(rel);
         });
-        
-        // Show dependencies for each class with relationships
         Object.entries(relationshipsBySource).forEach(([source, relationships]) => {
             prompt += `\n${source} dependencies:\n`;
             relationships.forEach(rel => {
@@ -369,21 +354,16 @@ export class OpenAIService {
             context += '\n';
         });
         
-        // Add dependency matrix for better visualization
         context += `\nDependency Matrix:\n`;
-        // Create a map of class to its dependencies
         const dependencyMap: { [key: string]: Set<string> } = {};
         structure.classes.forEach(cls => {
             dependencyMap[cls.name] = new Set();
         });
-        
         structure.relationships.forEach(rel => {
             if (dependencyMap[rel.from]) {
                 dependencyMap[rel.from].add(rel.to);
             }
         });
-        
-        // Show dependencies for each class
         Object.entries(dependencyMap).forEach(([className, dependencies]) => {
             if (dependencies.size > 0) {
                 context += `${className} -> [${Array.from(dependencies).join(', ')}]\n`;

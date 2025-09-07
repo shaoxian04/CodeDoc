@@ -47,8 +47,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 }
             }
         );
-        
-        // If we already have project structure data, send it to the webview
         if (this._projectStructure) {
             console.log('Resending existing visualization data to newly resolved webview');
             setTimeout(() => {
@@ -58,15 +56,13 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         data: this._prepareVisualizationData(this._projectStructure!)
                     });
                 }
-            }, 500); // Increased delay to ensure webview is fully ready
+            }, 500); 
         }
     }
-
     public updateVisualization(structure: ProjectStructure) {
         this._projectStructure = structure;
         if (this._view && this._view.webview) {
             console.log('Sending visualization data to webview');
-            // Ensure the webview is ready before sending data
             setTimeout(() => {
                 if (this._view && this._view.webview) {
                     console.log('Actually sending visualization data');
@@ -75,7 +71,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         data: this._prepareVisualizationData(structure)
                     });
                 }
-            }, 300); // Increased delay to ensure webview is fully ready
+            }, 300); 
         } else {
             console.log('Webview not ready, cannot send data');
         }
@@ -89,24 +85,22 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
     public showClassDocumentation(content: string) {
         if (this._view) {
-            // Convert markdown to HTML for display
             const htmlContent = marked(content);
             this._view.webview.postMessage({
                 type: 'showExplanation',
                 text: htmlContent,
-                markdown: content  // Store original markdown for export
+                markdown: content  
             });
         }
     }
 
     public showProjectDocumentation(content: string) {
         if (this._view) {
-            // Convert markdown to HTML for display
             const htmlContent = marked(content);
             this._view.webview.postMessage({
                 type: 'showProjectOverview',
                 text: htmlContent,
-                markdown: content  // Store original markdown for export
+                markdown: content  
             });
         }
     }
@@ -128,7 +122,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             });
         }
     }
-
     private _refreshVisualization() {
         if (this._view) {
             this._view.webview.postMessage({ type: 'refreshing' });
@@ -189,7 +182,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             )
         };
 
-        // Calculate dependencies
         const dependencies = structure.relationships.map(rel => ({
             from: rel.from,
             to: rel.to,
@@ -335,7 +327,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     background-color: var(--vscode-button-hoverBackground);
                 }
                 
-                /* Enhanced Visualization styles */
                 .visualization {
                     flex: 1;
                     background-color: var(--vscode-input-background);
@@ -537,7 +528,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     display: none;
                 }
                 
-                /* Markdown styling for documentation */
                 .documentation-content {
                     font-family: var(--vscode-editor-font-family);
                     line-height: 1.6;
@@ -638,8 +628,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 <button class="nav-tab" id="tab-explanation">📖 Code Explanation</button>
                 <button class="nav-tab" id="tab-visualization2">📈 Visualization </button>
             </div>
-            
-            <!-- Overview Tab -->
             <div id="overview-tab" class="tab-content active">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin: 0;">📊 Architecture Overview</h3>
@@ -651,24 +639,19 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     <p><em>This will analyze all Java files in your workspace and show the architecture diagram.</em></p>
                 </div>
                 
-                <!-- Stats Panel -->
                 <div class="stats-panel" id="statsPanel" style="display: none;">
                     <div class="stats-grid" id="statsGrid"></div>
                 </div>
-                
-                <!-- Architecture Layers -->
                 <div class="visualization" id="overview-content">
                     <div class="placeholder">Click "Visualize Code" to see your project architecture</div>
                 </div>
                 
-                <!-- Info Panel -->
                 <div class="info-panel" id="infoPanel">
                     <h4 id="infoPanelTitle">Class Details</h4>
                     <div id="infoPanelContent"></div>
                 </div>
             </div>
             
-            <!-- Chat Tab -->
             <div id="chat-tab" class="tab-content">
                 <div class="chat-container">
                     <div class="chat-messages" id="chatMessages">
@@ -681,7 +664,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 </div>
             </div>
             
-            <!-- Explanation Tab -->
             <div id="explanation-tab" class="tab-content">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin: 0;">📖 Code Explanation</h3>
@@ -699,7 +681,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     Click "Generate Project Overview" to create documentation for the entire project.</em></p>
                 </div>
                 
-                <!-- Class Documentation Content -->
                 <div id="class-documentation-content" style="display: none;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                         <button class="visualize-btn" id="back-to-explanation-btn">↩️ Back to Options</button>
@@ -708,8 +689,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     <div id="class-documentation-text" class="documentation-content"></div>
                 </div>
             </div>
-            
-            <!-- New Visualization Tab -->
+
             <div id="visualization2-tab" class="tab-content">
                 <div class="placeholder">
                     📈 New visualization feature coming soon!<br>
@@ -735,16 +715,13 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             }
         });
         
-        // Special handling for explanation tab to show the correct content
         if (tabName === 'explanation') {
             const documentationContent = document.getElementById('class-documentation-content');
             const placeholder = document.getElementById('explanation-placeholder');
             
-            // If documentation has been generated, show it; otherwise show the placeholder
             if (documentationContent && documentationContent.style.display !== 'none') {
                 // Documentation is already visible, keep it that way
             } else {
-                // Show placeholder if no documentation is displayed
                 if (placeholder) {
                     placeholder.style.display = 'block';
                 }
@@ -798,12 +775,11 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         const statsGrid = document.getElementById('statsGrid');
         const placeholder = document.getElementById('overview-placeholder');
         
-        // Hide placeholder and show content
         placeholder.style.display = 'none';
         visualizationContent.style.display = 'flex';
         statsPanel.style.display = 'block';
         
-        // Render stats
+
         statsGrid.innerHTML = \`
             <div class="stat-item">
                 <div class="stat-number">\${data.stats.totalClasses}</div>
@@ -831,7 +807,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             </div>
         \`;
         
-        // Render layers vertically
         visualizationContent.innerHTML = '<div class="architecture-layers-container"></div>';
         const layersContainer = visualizationContent.querySelector('.architecture-layers-container');
         
@@ -960,7 +935,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-        // Tab buttons
         document.getElementById('tab-overview').addEventListener('click', () => {
             switchTab('overview');
             console.log('overview button is clicked');
@@ -974,21 +948,16 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         document.getElementById('tab-visualization2').addEventListener('click', () => {
             switchTab('visualization2');
         });
-
-        // Visualize button handler
         document.getElementById('visualize-btn-large').addEventListener('click', refreshVisualization);
         
-        // Documentation generation buttons
         document.getElementById('generate-project-doc-btn').addEventListener('click', generateProjectDocumentation);
         document.getElementById('generate-class-doc-btn').addEventListener('click', generateClassDocumentation);
         document.getElementById('export-class-doc-btn').addEventListener('click', exportClassDocumentation);
         document.getElementById('back-to-explanation-btn').addEventListener('click', showExplanationOptions);
-        
-        // Set default tab
+
         switchTab('overview');
     });
 
-    // Handle messages from the extension
     window.addEventListener('message', event => {
         const message = event.data;
         switch (message.type) {
@@ -997,7 +966,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 break;
             case 'showExplanation':
                 showClassDocumentation(message.text);
-                // Store markdown content for export
                 if (message.markdown) {
                     document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
                 }
@@ -1005,14 +973,12 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 break;
             case 'showProjectOverview':
                 showProjectDocumentation(message.text);
-                // Store markdown content for export
                 if (message.markdown) {
                     document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
                 }
                 switchTab('explanation');
                 break;
             case 'refreshing':
-                // Show loading state if needed
                 break;
         }
     });
