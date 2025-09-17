@@ -1,14 +1,50 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OpenAIService = void 0;
-const openai_1 = require("openai");
-const vscode = require("vscode");
+const openai_1 = __importDefault(require("openai"));
+const vscode = __importStar(require("vscode"));
 class OpenAIService {
+    openai = null;
+    currentModel = 'gpt-4';
+    maxTokens = 2000;
+    temperature = 0.3;
     constructor() {
-        this.openai = null;
-        this.currentModel = 'gpt-4';
-        this.maxTokens = 2000;
-        this.temperature = 0.3;
         this.initializeOpenAI();
     }
     async initializeOpenAI() {
@@ -23,9 +59,6 @@ class OpenAIService {
             });
         }
     }
-    /**
-     * Reinitialize the OpenAI service with updated configuration
-     */
     async reinitialize() {
         await this.initializeOpenAI();
     }
@@ -213,7 +246,6 @@ class OpenAIService {
     createProjectOverviewPrompt(structure) {
         let prompt = `Analyze this Java/Spring project structure:\n\n`;
         prompt += `Total Classes: ${structure.classes.length}\n\n`;
-        // Group classes by package
         const packageGroups = {};
         structure.classes.forEach(cls => {
             const pkg = cls.package || 'default';
@@ -227,7 +259,6 @@ class OpenAIService {
             prompt += `- ${pkg}: ${classes.length} classes\n`;
         });
         prompt += '\n';
-        // Spring components
         const springComponents = structure.classes.filter(cls => cls.annotations.some(ann => ann.includes('@Service') ||
             ann.includes('@Controller') ||
             ann.includes('@Repository') ||
@@ -245,7 +276,6 @@ class OpenAIService {
             });
             prompt += '\n';
         }
-        // Key relationships
         prompt += `Relationships:\n`;
         const relationshipCounts = structure.relationships.reduce((acc, rel) => {
             acc[rel.type] = (acc[rel.type] || 0) + 1;
@@ -254,9 +284,7 @@ class OpenAIService {
         Object.entries(relationshipCounts).forEach(([type, count]) => {
             prompt += `- ${type}: ${count} connections\n`;
         });
-        // Detailed dependency information
         prompt += '\nDetailed Dependencies:\n';
-        // Group relationships by source class
         const relationshipsBySource = {};
         structure.relationships.forEach(rel => {
             if (!relationshipsBySource[rel.from]) {
@@ -264,7 +292,6 @@ class OpenAIService {
             }
             relationshipsBySource[rel.from].push(rel);
         });
-        // Show dependencies for each class with relationships
         Object.entries(relationshipsBySource).forEach(([source, relationships]) => {
             prompt += `\n${source} dependencies:\n`;
             relationships.forEach(rel => {
@@ -314,9 +341,7 @@ class OpenAIService {
             }
             context += '\n';
         });
-        // Add dependency matrix for better visualization
         context += `\nDependency Matrix:\n`;
-        // Create a map of class to its dependencies
         const dependencyMap = {};
         structure.classes.forEach(cls => {
             dependencyMap[cls.name] = new Set();
@@ -326,7 +351,6 @@ class OpenAIService {
                 dependencyMap[rel.from].add(rel.to);
             }
         });
-        // Show dependencies for each class
         Object.entries(dependencyMap).forEach(([className, dependencies]) => {
             if (dependencies.size > 0) {
                 context += `${className} -> [${Array.from(dependencies).join(', ')}]\n`;

@@ -1,9 +1,42 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.JavaParser = void 0;
-const vscode = require("vscode");
-const fs = require("fs");
-const path = require("path");
+const vscode = __importStar(require("vscode"));
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
 class JavaParser {
     async parseWorkspace() {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -35,7 +68,6 @@ class JavaParser {
     async parseJavaFile(filePath) {
         const content = fs.readFileSync(filePath, 'utf-8');
         const fileName = path.basename(filePath, '.java');
-        // Simple regex-based parsing (you can enhance this with proper AST parsing)
         const packageMatch = content.match(/package\s+([\w.]+);/);
         const packageName = packageMatch ? packageMatch[1] : '';
         const imports = this.extractImports(content);
@@ -50,7 +82,6 @@ class JavaParser {
         const fields = this.extractFields(content);
         const annotations = this.extractClassAnnotations(content);
         const dependencies = this.extractDependencies(content, imports);
-        // Check if this is a Spring controller
         const isController = this.isSpringController(annotations);
         const baseMapping = this.extractBaseMapping(annotations);
         const endpoints = isController ? this.extractEndpoints(methods, baseMapping) : [];
@@ -208,14 +239,12 @@ class JavaParser {
     }
     extractDependencies(content, imports) {
         const dependencies = [];
-        // Spring-specific annotations that indicate dependencies
         const springAnnotations = ['@Autowired', '@Inject', '@Resource', '@Service', '@Repository', '@Component', '@Controller', '@RestController'];
         for (const annotation of springAnnotations) {
             if (content.includes(annotation)) {
                 dependencies.push(annotation.substring(1));
             }
         }
-        // Extract field injection dependencies
         const fieldInjectionRegex = /@(?:Autowired|Inject|Resource)\s*(?:private|public|protected)?\s+(\w+)/g;
         let match;
         while ((match = fieldInjectionRegex.exec(content)) !== null) {
@@ -226,7 +255,6 @@ class JavaParser {
     extractRelationships(classes) {
         const relationships = [];
         for (const javaClass of classes) {
-            // Inheritance relationships
             if (javaClass.extends) {
                 relationships.push({
                     from: javaClass.name,
@@ -234,7 +262,6 @@ class JavaParser {
                     type: 'extends'
                 });
             }
-            // Interface implementation
             for (const impl of javaClass.implements) {
                 relationships.push({
                     from: javaClass.name,
@@ -242,7 +269,6 @@ class JavaParser {
                     type: 'implements'
                 });
             }
-            // Method calls and dependencies
             for (const method of javaClass.methods) {
                 for (const call of method.calls) {
                     const targetClass = this.findClassForMethod(classes, call);
@@ -256,7 +282,6 @@ class JavaParser {
                     }
                 }
             }
-            // Spring dependency injection
             for (const field of javaClass.fields) {
                 if (field.annotations.some(ann => ann.includes('@Autowired') || ann.includes('@Inject'))) {
                     relationships.push({
@@ -288,7 +313,6 @@ class JavaParser {
             if (pathMatch) {
                 return pathMatch[1];
             }
-            // Handle cases like @RequestMapping("/api/users")
             const simplePathMatch = requestMappingAnnotation.match(/@RequestMapping\s*\(\s*["']([^"']+)["']/);
             if (simplePathMatch) {
                 return simplePathMatch[1];
@@ -329,7 +353,6 @@ class JavaParser {
         let path = `/${methodName}`;
         let produces;
         let consumes;
-        // Determine HTTP method from annotation type
         switch (mappingType) {
             case '@PostMapping':
                 httpMethod = 'POST';
@@ -344,14 +367,12 @@ class JavaParser {
                 httpMethod = 'PATCH';
                 break;
             case '@RequestMapping':
-                // Extract method from RequestMapping
                 const methodMatch = annotation.match(/method\s*=\s*RequestMethod\.(\w+)/);
                 if (methodMatch) {
                     httpMethod = methodMatch[1];
                 }
                 break;
         }
-        // Extract path
         const pathMatches = [
             /(?:value\s*=\s*|path\s*=\s*)["']([^"']+)["']/,
             new RegExp(`@${mappingType.substring(1)}\\s*\\(\\s*["']([^"']+)["']`)
@@ -363,12 +384,10 @@ class JavaParser {
                 break;
             }
         }
-        // Extract produces
         const producesMatch = annotation.match(/produces\s*=\s*["']([^"']+)["']/);
         if (producesMatch) {
             produces = producesMatch[1];
         }
-        // Extract consumes
         const consumesMatch = annotation.match(/consumes\s*=\s*["']([^"']+)["']/);
         if (consumesMatch) {
             consumes = consumesMatch[1];

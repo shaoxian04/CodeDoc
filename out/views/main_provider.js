@@ -1,9 +1,46 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MainViewProvider = void 0;
-const vscode = require("vscode");
+const vscode = __importStar(require("vscode"));
 const marked_1 = require("marked");
 class MainViewProvider {
+    _extensionUri;
+    static viewType = 'codedoc.mainView';
+    _view;
+    _projectStructure;
     constructor(_extensionUri) {
         this._extensionUri = _extensionUri;
     }
@@ -36,7 +73,6 @@ class MainViewProvider {
                     break;
             }
         });
-        // If we already have project structure data, send it to the webview
         if (this._projectStructure) {
             console.log('Resending existing visualization data to newly resolved webview');
             setTimeout(() => {
@@ -46,14 +82,13 @@ class MainViewProvider {
                         data: this._prepareVisualizationData(this._projectStructure)
                     });
                 }
-            }, 500); // Increased delay to ensure webview is fully ready
+            }, 500);
         }
     }
     updateVisualization(structure) {
         this._projectStructure = structure;
         if (this._view && this._view.webview) {
             console.log('Sending visualization data to webview');
-            // Ensure the webview is ready before sending data
             setTimeout(() => {
                 if (this._view && this._view.webview) {
                     console.log('Actually sending visualization data');
@@ -62,7 +97,7 @@ class MainViewProvider {
                         data: this._prepareVisualizationData(structure)
                     });
                 }
-            }, 300); // Increased delay to ensure webview is fully ready
+            }, 300);
         }
         else {
             console.log('Webview not ready, cannot send data');
@@ -75,23 +110,21 @@ class MainViewProvider {
     }
     showClassDocumentation(content) {
         if (this._view) {
-            // Convert markdown to HTML for display
             const htmlContent = (0, marked_1.marked)(content);
             this._view.webview.postMessage({
                 type: 'showExplanation',
                 text: htmlContent,
-                markdown: content // Store original markdown for export
+                markdown: content
             });
         }
     }
     showProjectDocumentation(content) {
         if (this._view) {
-            // Convert markdown to HTML for display
             const htmlContent = (0, marked_1.marked)(content);
             this._view.webview.postMessage({
                 type: 'showProjectOverview',
                 text: htmlContent,
-                markdown: content // Store original markdown for export
+                markdown: content
             });
         }
     }
@@ -154,7 +187,6 @@ class MainViewProvider {
                 !cls.package.includes('.domain.entity') &&
                 !cls.name.endsWith('Controller'))
         };
-        // Calculate dependencies
         const dependencies = structure.relationships.map(rel => ({
             from: rel.from,
             to: rel.to,
@@ -298,7 +330,6 @@ class MainViewProvider {
                     background-color: var(--vscode-button-hoverBackground);
                 }
                 
-                /* Enhanced Visualization styles */
                 .visualization {
                     flex: 1;
                     background-color: var(--vscode-input-background);
@@ -500,7 +531,6 @@ class MainViewProvider {
                     display: none;
                 }
                 
-                /* Markdown styling for documentation */
                 .documentation-content {
                     font-family: var(--vscode-editor-font-family);
                     line-height: 1.6;
@@ -601,8 +631,6 @@ class MainViewProvider {
                 <button class="nav-tab" id="tab-explanation">📖 Code Explanation</button>
                 <button class="nav-tab" id="tab-visualization2">📈 Visualization </button>
             </div>
-            
-            <!-- Overview Tab -->
             <div id="overview-tab" class="tab-content active">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin: 0;">📊 Architecture Overview</h3>
@@ -614,24 +642,19 @@ class MainViewProvider {
                     <p><em>This will analyze all Java files in your workspace and show the architecture diagram.</em></p>
                 </div>
                 
-                <!-- Stats Panel -->
                 <div class="stats-panel" id="statsPanel" style="display: none;">
                     <div class="stats-grid" id="statsGrid"></div>
                 </div>
-                
-                <!-- Architecture Layers -->
                 <div class="visualization" id="overview-content">
                     <div class="placeholder">Click "Visualize Code" to see your project architecture</div>
                 </div>
                 
-                <!-- Info Panel -->
                 <div class="info-panel" id="infoPanel">
                     <h4 id="infoPanelTitle">Class Details</h4>
                     <div id="infoPanelContent"></div>
                 </div>
             </div>
             
-            <!-- Chat Tab -->
             <div id="chat-tab" class="tab-content">
                 <div class="chat-container">
                     <div class="chat-messages" id="chatMessages">
@@ -644,7 +667,6 @@ class MainViewProvider {
                 </div>
             </div>
             
-            <!-- Explanation Tab -->
             <div id="explanation-tab" class="tab-content">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin: 0;">📖 Code Explanation</h3>
@@ -662,7 +684,6 @@ class MainViewProvider {
                     Click "Generate Project Overview" to create documentation for the entire project.</em></p>
                 </div>
                 
-                <!-- Class Documentation Content -->
                 <div id="class-documentation-content" style="display: none;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                         <button class="visualize-btn" id="back-to-explanation-btn">↩️ Back to Options</button>
@@ -671,8 +692,7 @@ class MainViewProvider {
                     <div id="class-documentation-text" class="documentation-content"></div>
                 </div>
             </div>
-            
-            <!-- New Visualization Tab -->
+
             <div id="visualization2-tab" class="tab-content">
                 <div class="placeholder">
                     📈 New visualization feature coming soon!<br>
@@ -698,16 +718,13 @@ class MainViewProvider {
             }
         });
         
-        // Special handling for explanation tab to show the correct content
         if (tabName === 'explanation') {
             const documentationContent = document.getElementById('class-documentation-content');
             const placeholder = document.getElementById('explanation-placeholder');
             
-            // If documentation has been generated, show it; otherwise show the placeholder
             if (documentationContent && documentationContent.style.display !== 'none') {
                 // Documentation is already visible, keep it that way
             } else {
-                // Show placeholder if no documentation is displayed
                 if (placeholder) {
                     placeholder.style.display = 'block';
                 }
@@ -761,12 +778,11 @@ class MainViewProvider {
         const statsGrid = document.getElementById('statsGrid');
         const placeholder = document.getElementById('overview-placeholder');
         
-        // Hide placeholder and show content
         placeholder.style.display = 'none';
         visualizationContent.style.display = 'flex';
         statsPanel.style.display = 'block';
         
-        // Render stats
+
         statsGrid.innerHTML = \`
             <div class="stat-item">
                 <div class="stat-number">\${data.stats.totalClasses}</div>
@@ -794,7 +810,6 @@ class MainViewProvider {
             </div>
         \`;
         
-        // Render layers vertically
         visualizationContent.innerHTML = '<div class="architecture-layers-container"></div>';
         const layersContainer = visualizationContent.querySelector('.architecture-layers-container');
         
@@ -923,7 +938,6 @@ class MainViewProvider {
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-        // Tab buttons
         document.getElementById('tab-overview').addEventListener('click', () => {
             switchTab('overview');
             console.log('overview button is clicked');
@@ -937,21 +951,16 @@ class MainViewProvider {
         document.getElementById('tab-visualization2').addEventListener('click', () => {
             switchTab('visualization2');
         });
-
-        // Visualize button handler
         document.getElementById('visualize-btn-large').addEventListener('click', refreshVisualization);
         
-        // Documentation generation buttons
         document.getElementById('generate-project-doc-btn').addEventListener('click', generateProjectDocumentation);
         document.getElementById('generate-class-doc-btn').addEventListener('click', generateClassDocumentation);
         document.getElementById('export-class-doc-btn').addEventListener('click', exportClassDocumentation);
         document.getElementById('back-to-explanation-btn').addEventListener('click', showExplanationOptions);
-        
-        // Set default tab
+
         switchTab('overview');
     });
 
-    // Handle messages from the extension
     window.addEventListener('message', event => {
         const message = event.data;
         switch (message.type) {
@@ -960,7 +969,6 @@ class MainViewProvider {
                 break;
             case 'showExplanation':
                 showClassDocumentation(message.text);
-                // Store markdown content for export
                 if (message.markdown) {
                     document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
                 }
@@ -968,14 +976,12 @@ class MainViewProvider {
                 break;
             case 'showProjectOverview':
                 showProjectDocumentation(message.text);
-                // Store markdown content for export
                 if (message.markdown) {
                     document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
                 }
                 switchTab('explanation');
                 break;
             case 'refreshing':
-                // Show loading state if needed
                 break;
         }
     });
@@ -986,5 +992,4 @@ class MainViewProvider {
     }
 }
 exports.MainViewProvider = MainViewProvider;
-MainViewProvider.viewType = 'codedoc.mainView';
 //# sourceMappingURL=main_provider.js.map
