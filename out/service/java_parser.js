@@ -37,6 +37,7 @@ exports.JavaParser = void 0;
 const vscode = __importStar(require("vscode"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const file_utils_1 = require("./file_utils");
 class JavaParser {
     async parseWorkspace() {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -44,6 +45,7 @@ class JavaParser {
             throw new Error('No workspace folder found');
         }
         const javaFiles = await this.findJavaFiles(workspaceFolder.uri.fsPath);
+        console.log('Found Java files:', javaFiles);
         const classes = [];
         for (const filePath of javaFiles) {
             try {
@@ -56,8 +58,11 @@ class JavaParser {
                 console.error(`Error parsing ${filePath}:`, error);
             }
         }
+        console.log('Parsed classes:', classes.map(cls => cls.name));
         const relationships = this.extractRelationships(classes);
-        return { classes, relationships };
+        const result = { classes, relationships };
+        console.log('Project structure:', result);
+        return result;
     }
     async findJavaFiles(rootPath) {
         const javaFiles = [];
@@ -66,39 +71,68 @@ class JavaParser {
         return files.map(file => file.fsPath);
     }
     async parseJavaFile(filePath) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        const fileName = path.basename(filePath, '.java');
-        const packageMatch = content.match(/package\s+([\w.]+);/);
-        const packageName = packageMatch ? packageMatch[1] : '';
-        const imports = this.extractImports(content);
-        const classMatch = content.match(/(?:public\s+)?(?:abstract\s+)?(?:final\s+)?class\s+(\w+)(?:\s+extends\s+(\w+))?(?:\s+implements\s+([\w\s,]+))?/);
-        if (!classMatch) {
+        console.log('Parsing Java file:', filePath);
+        // Sanitize the file path to prevent issues with .git extensions
+        const sanitizedPath = (0, file_utils_1.sanitizeFilePath)(filePath);
+        // Check if file is accessible
+        if (!(0, file_utils_1.isFileAccessible)(sanitizedPath)) {
+            console.warn('File not accessible:', sanitizedPath);
             return null;
         }
-        const className = classMatch[1];
-        const extendsClass = classMatch[2];
-        const implementsClasses = classMatch[3] ? classMatch[3].split(',').map(s => s.trim()) : [];
-        const methods = this.extractMethods(content);
-        const fields = this.extractFields(content);
-        const annotations = this.extractClassAnnotations(content);
-        const dependencies = this.extractDependencies(content, imports);
-        const isController = this.isSpringController(annotations);
-        const baseMapping = this.extractBaseMapping(annotations);
-        const endpoints = isController ? this.extractEndpoints(methods, baseMapping) : [];
-        return {
-            name: className,
-            filePath,
-            package: packageName,
-            imports,
-            methods,
-            fields,
-            annotations,
-            extends: extendsClass,
-            implements: implementsClasses,
-            dependencies,
-            isController,
-            endpoints
-        };
+        try {
+            const content = (0, file_utils_1.readFileSafely)(sanitizedPath);
+            if (content === null) {
+                console.error('Failed to read file:', sanitizedPath);
+                return null;
+            }
+            const fileName = path.basename(sanitizedPath, '.java');
+            const packageMatch = content.match(/package\s+([\w.]+);/);
+            const packageName = packageMatch ? packageMatch[1] : '';
+            const imports = this.extractImports(content);
+            const classMatch = content.match(/(?:public\s+)?(?:abstract\s+)?(?:final\s+)?class\s+(\w+)(?:\s+extends\s+(\w+))?(?:\s+implements\s+([\w\s,]+))?/);
+            if (!classMatch) {
+                console.log('No class found in file:', sanitizedPath);
+                return null;
+            }
+            const className = classMatch[1];
+            console.log('Found class:', className, 'in file:', sanitizedPath);
+            const extendsClass = classMatch[2];
+            const implementsClasses = classMatch[3] ? classMatch[3].split(',').map(s => s.trim()) : [];
+            const methods = this.extractMethods(content);
+            const fields = this.extractFields(content);
+            const annotations = this.extractClassAnnotations(content);
+            const dependencies = this.extractDependencies(content, imports);
+            const isController = this.isSpringController(annotations);
+            const baseMapping = this.extractBaseMapping(annotations);
+            const endpoints = isController ? this.extractEndpoints(methods, baseMapping) : [];
+            const result = {
+                name: className,
+                filePath: sanitizedPath, // Use sanitized path
+                package: packageName,
+                imports,
+                methods,
+                fields,
+                annotations,
+                extends: extendsClass,
+                implements: implementsClasses,
+                dependencies,
+                isController,
+                endpoints
+            };
+            console.log('Parsed class result:', result);
+            return result;
+        }
+        catch (error) {
+            console.error(`Error parsing ${sanitizedPath}:`, error);
+            // Log additional information about the file path
+            console.error('File path details:', {
+                originalPath: filePath,
+                sanitizedPath: sanitizedPath,
+                exists: fs.existsSync(sanitizedPath),
+                stat: fs.existsSync(sanitizedPath) ? fs.lstatSync(sanitizedPath) : 'File does not exist'
+            });
+            return null;
+        }
     }
     extractImports(content) {
         const importRegex = /import\s+((?:static\s+)?[\w.]+(?:\.\*)?);/g;
@@ -110,7 +144,8 @@ class JavaParser {
         return imports;
     }
     extractMethods(content) {
-        const methodRegex = /(?:@\w+(?:\([^)]*\))?\s*)*(?:(public|private|protected)\s+)?(?:(static)\s+)?(?:(final)\s+)?(\w+(?:<[^>]+>)?|\w+\[\])\s+(\w+)\s*\(([^)]*)\)\s*(?:throws\s+[\w\s,]+)?\s*\{/g;
+        // Improved regex pattern to better capture method annotations and signatures
+        const methodRegex = /(?:@[a-zA-Z_][a-zA-Z0-9_]*(?:\([^)]*\))?\s*)*(?:(public|private|protected)\s+)?(?:(static)\s+)?(?:(final)\s+)?([a-zA-Z_][a-zA-Z0-9_.<>[\]]*)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)\s*(?:throws\s+[^{;]+)?\s*\{/g;
         const methods = [];
         let match;
         while ((match = methodRegex.exec(content)) !== null) {
@@ -181,16 +216,20 @@ class JavaParser {
         return annotations;
     }
     extractMethodAnnotations(content, methodIndex) {
-        const beforeMethod = content.substring(Math.max(0, methodIndex - 500), methodIndex);
+        // Look backwards from the method index to find all annotations
+        const beforeMethod = content.substring(Math.max(0, methodIndex - 1000), methodIndex);
         const lines = beforeMethod.split('\n');
         const annotations = [];
+        // Go through lines in reverse order to collect annotations
         for (let i = lines.length - 1; i >= 0; i--) {
             const line = lines[i].trim();
+            // If we encounter a non-annotation, non-comment, non-empty line, stop
+            if (line && !line.startsWith('@') && !line.startsWith('//') && !line.startsWith('/*') && !line.startsWith('*')) {
+                break;
+            }
+            // If it's an annotation, add it to our list
             if (line.startsWith('@')) {
                 annotations.unshift(line);
-            }
-            else if (line && !line.startsWith('//') && !line.startsWith('/*')) {
-                break;
             }
         }
         return annotations;
@@ -339,6 +378,7 @@ class JavaParser {
             '@RequestMapping', '@GetMapping', '@PostMapping',
             '@PutMapping', '@DeleteMapping', '@PatchMapping'
         ];
+        // Check each annotation to see if it's a mapping annotation
         for (const annotation of annotations) {
             for (const mappingType of mappingAnnotations) {
                 if (annotation.includes(mappingType)) {
@@ -353,6 +393,7 @@ class JavaParser {
         let path = `/${methodName}`;
         let produces;
         let consumes;
+        // Determine HTTP method based on annotation type
         switch (mappingType) {
             case '@PostMapping':
                 httpMethod = 'POST';
@@ -367,23 +408,31 @@ class JavaParser {
                 httpMethod = 'PATCH';
                 break;
             case '@RequestMapping':
+                // For RequestMapping, check if method is specified
                 const methodMatch = annotation.match(/method\s*=\s*RequestMethod\.(\w+)/);
                 if (methodMatch) {
                     httpMethod = methodMatch[1];
                 }
                 break;
+            case '@GetMapping':
+                httpMethod = 'GET';
+                break;
         }
-        const pathMatches = [
+        // Extract path from annotation
+        // Handle different patterns: @GetMapping("/path"), @GetMapping(path = "/path"), @GetMapping(value = "/path")
+        const pathPatterns = [
             /(?:value\s*=\s*|path\s*=\s*)["']([^"']+)["']/,
-            new RegExp(`@${mappingType.substring(1)}\\s*\\(\\s*["']([^"']+)["']`)
+            new RegExp(`${mappingType.replace('(', '\\(').replace(')', '\\)')}\\s*\\(\\s*["']([^"']+)["']`),
+            /["']([^"']+)["']/
         ];
-        for (const pathMatch of pathMatches) {
-            const match = annotation.match(pathMatch);
-            if (match) {
+        for (const pattern of pathPatterns) {
+            const match = annotation.match(pattern);
+            if (match && match[1]) {
                 path = match[1];
                 break;
             }
         }
+        // Extract produces and consumes if present
         const producesMatch = annotation.match(/produces\s*=\s*["']([^"']+)["']/);
         if (producesMatch) {
             produces = producesMatch[1];

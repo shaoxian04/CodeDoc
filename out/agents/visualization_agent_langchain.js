@@ -33,13 +33,14 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DocumentationAgent = void 0;
+exports.VisualizationAgent = void 0;
 const openai_1 = require("@langchain/openai");
 const output_parsers_1 = require("@langchain/core/output_parsers");
 const prompts_1 = require("@langchain/core/prompts");
+const java_parser_1 = require("../service/java_parser");
 const rag_service_1 = require("../service/rag_service");
 const vscode = __importStar(require("vscode"));
-class DocumentationAgent {
+class VisualizationAgent {
     model = null;
     outputParser;
     ragService;
@@ -72,32 +73,30 @@ class DocumentationAgent {
     async execute(context) {
         const task = context.task;
         switch (task) {
-            case 'generateProjectOverview':
-                return await this.generateProjectOverview(context.projectStructure, context.userQuery);
-            case 'generateClassDocumentation':
-                return await this.generateClassDocumentation(context.javaClass, context.relatedClasses, context.userQuery);
+            case 'generateArchitectureDiagram':
+                return await this.generateArchitectureDescription(context.projectStructure, context.userQuery);
             default:
                 throw new Error(`Unknown task: ${task}`);
         }
     }
-    async generateProjectOverview(structure, userQuery) {
+    async generateArchitectureDescription(structure, userQuery) {
         try {
             const model = this.initializeModel();
             let finalPrompt = `
-                Generate a concise overview of this Java/Spring project for new developers.
-                Focus on architecture and key components that matter for onboarding.
+                Generate a concise architecture description of this Java/Spring project for new developers.
+                Focus on the key components and relationships that matter for understanding the system.
                 
                 Project Structure:
                 {structure}
                 
                 Guidelines for documentation:
-                1. Start with a brief description of what the project does (1-2 sentences)
-                2. Describe the main architectural layers (Controller, Service, Repository, etc.)
-                3. List the most important classes and what they do
-                4. Explain the data flow through the system
-                5. Keep the entire documentation under 300 words
+                1. Start with a brief description of the system architecture (1-2 sentences)
+                2. Describe the main architectural layers and their responsibilities
+                3. List the most important components and their relationships
+                4. Include a simple mermaid diagram showing key relationships
+                5. Keep the entire documentation under 250 words
                 6. Use simple language that new developers can understand
-                7. Format the response in code with clear headings
+                7. Format the response in clear headings
             `;
             if (userQuery && structure) {
                 const context = await this.ragService.retrieveContext(userQuery, structure);
@@ -105,7 +104,9 @@ class DocumentationAgent {
                 // Use the augmented prompt directly instead of treating it as a template
                 finalPrompt = augmentedPrompt;
             }
-            // Create a prompt for generating project documentation
+            // Use the existing JavaParser to get project structure
+            const javaParser = new java_parser_1.JavaParser();
+            // Create a prompt for generating architecture description
             const promptTemplate = prompts_1.PromptTemplate.fromTemplate(finalPrompt);
             // Convert structure to a readable format for the LLM
             const structureSummary = this.createStructureSummary(structure);
@@ -117,88 +118,7 @@ class DocumentationAgent {
             if (error instanceof Error && error.message.includes('API key not configured')) {
                 throw error; // Re-throw configuration errors
             }
-            throw new Error(`Failed to generate project overview: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-    async generateClassDocumentation(javaClass, relatedClasses = [], userQuery) {
-        try {
-            const model = this.initializeModel();
-            let finalPrompt = `
-                Generate concise, developer-friendly documentation for this Java class.
-                Focus on what the class does and how to use it, not implementation details.
-                
-                Class: {className}
-                Package: {package}
-                File: {filePath}
-                
-                Annotations: {annotations}
-                Extends: {extends}
-                Implements: {implements}
-                
-                Fields:
-                {fields}
-                
-                Methods:
-                {methods}
-                
-                Related Classes:
-                {relatedClasses}
-                
-                Guidelines for documentation:
-                1. Start with a clear, one-sentence description of the class purpose
-                2. List the main responsibilities in bullet points (3-5 items max)
-                3. Briefly describe important methods (focus on what they do, not how)
-                4. Mention key relationships with other classes
-                5. Keep the entire documentation under 200 words
-                6. Use simple language that new developers can understand
-                7. Format the response in code with clear headings
-            `;
-            if (userQuery && javaClass) {
-                // For class documentation, we can create a simple context
-                const context = {
-                    relevantClasses: [javaClass],
-                    relevantMethods: javaClass.methods.map((method) => ({
-                        className: javaClass.name,
-                        method: method
-                    })),
-                    projectStats: {
-                        totalClasses: 1,
-                        totalMethods: javaClass.methods.length,
-                        totalFields: javaClass.fields.length,
-                        springComponents: javaClass.annotations.some((ann) => ann.includes('@Service') ||
-                            ann.includes('@Controller') ||
-                            ann.includes('@Repository') ||
-                            ann.includes('@Component') ||
-                            ann.includes('@RestController')) ? 1 : 0
-                    }
-                };
-                const augmentedPrompt = await this.ragService.augmentPrompt(finalPrompt, context);
-                // Use the augmented prompt directly instead of treating it as a template
-                finalPrompt = augmentedPrompt;
-            }
-            const promptTemplate = prompts_1.PromptTemplate.fromTemplate(finalPrompt);
-            const fieldsStr = javaClass.fields.map((f) => `- ${f.visibility} ${f.isStatic ? 'static ' : ''}${f.type} ${f.name} ${f.annotations.length > 0 ? '(' + f.annotations.join(', ') + ')' : ''}`).join('\n');
-            const methodsStr = javaClass.methods.map((m) => `- ${m.visibility} ${m.isStatic ? 'static ' : ''}${m.returnType} ${m.name}(${m.parameters.map((p) => `${p.type} ${p.name}`).join(', ')}) ${m.annotations.length > 0 ? '(' + m.annotations.join(', ') + ')' : ''}`).join('\n');
-            const relatedClassesStr = relatedClasses.map((cls) => `- ${cls.name} (${cls.package})`).join('\n');
-            const chain = promptTemplate.pipe(model).pipe(this.outputParser);
-            const result = await chain.invoke({
-                className: javaClass.name,
-                package: javaClass.package,
-                filePath: javaClass.filePath,
-                annotations: javaClass.annotations.join(', '),
-                extends: javaClass.extends || 'None',
-                implements: javaClass.implements.join(', ') || 'None',
-                fields: fieldsStr || 'None',
-                methods: methodsStr || 'None',
-                relatedClasses: relatedClassesStr || 'None'
-            });
-            return result;
-        }
-        catch (error) {
-            if (error instanceof Error && error.message.includes('API key not configured')) {
-                throw error; // Re-throw configuration errors
-            }
-            throw new Error(`Failed to generate class documentation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Failed to generate architecture description: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
     createStructureSummary(structure) {
@@ -245,5 +165,5 @@ class DocumentationAgent {
         return summary;
     }
 }
-exports.DocumentationAgent = DocumentationAgent;
-//# sourceMappingURL=documentation_agent_langchain.js.map
+exports.VisualizationAgent = VisualizationAgent;
+//# sourceMappingURL=visualization_agent_langchain.js.map

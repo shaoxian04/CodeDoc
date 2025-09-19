@@ -1,42 +1,76 @@
 import * as vscode from 'vscode';
 import { MainViewProvider } from './views/main_provider';
-import { JavaParser } from './service/java_parser';
+import { JavaParser, ProjectStructure } from './service/java_parser';
 import { OpenAIService } from './service/openai_service';
+import { WorkflowOrchestrator } from './agents/workflow_orchestrator_langchain';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('CodeDoc extension is now active!');
+    
+    // Log activation for debugging
+    console.log('CodeDoc extension activation started');
 
     const javaParser = new JavaParser();
     const openaiService = new OpenAIService();
     const mainProvider = new MainViewProvider(context.extensionUri);
+    const workflowOrchestrator = new WorkflowOrchestrator(); // Langchain-based workflow orchestrator with RAG and MCP
+    
+    console.log('CodeDoc services initialized');
     
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider('codedoc.mainView', mainProvider)
     );
+    
+    console.log('CodeDoc webview provider registered');
+    
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.openChat', () => {
+            console.log('codedoc.openChat command executed');
             vscode.commands.executeCommand('workbench.view.extension.codedoc-sidebar');
         })
     );
+    
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.clearChat', () => {
+            console.log('codedoc.clearChat command executed');
             mainProvider.clearChat();
         })
     );
+    
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.generateDocs', async () => {
+            console.log('codedoc.generateDocs command executed');
             try {
-                vscode.window.showInformationMessage('Generating documentation...');
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                const structure = await javaParser.parseWorkspace();
-            
-                if (structure.classes.length === 0) {
-                    vscode.window.showWarningMessage('No Java classes found in the workspace');
+                // Check if API key is configured
+                const config = vscode.workspace.getConfiguration('codedoc');
+                const apiKey = config.get<string>('openaiApiKey');
+                
+                if (!apiKey) {
+                    const result = await vscode.window.showErrorMessage(
+                        'OpenAI API key not configured. Please configure it in the settings.',
+                        'Configure Now'
+                    );
+                    
+                    if (result === 'Configure Now') {
+                        console.log('Redirecting to configureExtension command');
+                        vscode.commands.executeCommand('codedoc.configureExtension');
+                    }
                     return;
                 }
-                const overview = await openaiService.generateProjectOverview(structure);
-                mainProvider.showProjectDocumentation(overview);
-                vscode.window.showInformationMessage('Documentation generated successfully!');
+                
+                vscode.window.showInformationMessage('Generating documentation...');
+                
+                // Parse the workspace to get project structure
+                const structure: ProjectStructure = await javaParser.parseWorkspace();
+                
+                // Use the Langchain-based workflow orchestrator with RAG
+                const response = await workflowOrchestrator.generateProjectOverview(structure, 'Generate comprehensive project overview documentation');
+                if (response.success && response.data) {
+                    mainProvider.showProjectDocumentation(response.data);
+                    vscode.window.showInformationMessage('Documentation generated successfully!');
+                } else {
+                    vscode.window.showErrorMessage(response.error || 'Failed to generate documentation');
+                }
             } catch (error) {
                 if (error instanceof Error && error.message.includes('Client is not running')) {
                     vscode.window.showErrorMessage('Java language server is not ready yet. Please wait a moment and try again.');
@@ -49,19 +83,40 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.visualizeCode', async () => {
+            console.log('codedoc.visualizeCode command executed');
             try {
-                vscode.window.showInformationMessage('Analyzing code structure...');
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                const structure = await javaParser.parseWorkspace();
+                // Check if API key is configured
+                const config = vscode.workspace.getConfiguration('codedoc');
+                const apiKey = config.get<string>('openaiApiKey');
                 
-                if (structure.classes.length === 0) {
-                    vscode.window.showWarningMessage('No Java classes found in the workspace');
+                if (!apiKey) {
+                    const result = await vscode.window.showErrorMessage(
+                        'OpenAI API key not configured. Please configure it in the settings.',
+                        'Configure Now'
+                    );
+                    
+                    if (result === 'Configure Now') {
+                        console.log('Redirecting to configureExtension command');
+                        vscode.commands.executeCommand('codedoc.configureExtension');
+                    }
                     return;
                 }
-                mainProvider.updateVisualization(structure);
-                await vscode.commands.executeCommand('codedoc.mainView.focus');
-                vscode.window.showInformationMessage('Code visualization updated!');
                 
+                vscode.window.showInformationMessage('Analyzing code structure...');
+                
+                // Parse the workspace to get project structure
+                const structure: ProjectStructure = await javaParser.parseWorkspace();
+                
+                // Use the Langchain-based workflow orchestrator with RAG
+                const response = await workflowOrchestrator.generateVisualization(structure, 'Generate architecture diagram and visualization');
+                if (response.success && response.data) {
+                    // For visualization, we need to parse the data properly
+                    mainProvider.updateVisualization(structure);
+                    await vscode.commands.executeCommand('codedoc.mainView.focus');
+                    vscode.window.showInformationMessage('Code visualization updated!');
+                } else {
+                    vscode.window.showErrorMessage(response.error || 'Failed to generate visualization');
+                }
             } catch (error) {
                 if (error instanceof Error && error.message.includes('Client is not running')) {
                     vscode.window.showErrorMessage('Java language server is not ready yet. Please wait a moment and try again.');
@@ -74,25 +129,43 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.configureExtension', async () => {
+            console.log('codedoc.configureExtension command executed');
             const result = await showConfigurationQuickPick();
             if (result) {
                 vscode.window.showInformationMessage('Configuration updated successfully!');
                 openaiService.reinitialize();
+                // Note: We don't need to reinitialize the workflow orchestrator as it uses the config at runtime
             }
         })
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.generateClassDocs', async () => {
+            console.log('codedoc.generateClassDocs command executed');
             try {
+                // Check if API key is configured
+                const config = vscode.workspace.getConfiguration('codedoc');
+                const apiKey = config.get<string>('openaiApiKey');
+                
+                if (!apiKey) {
+                    const result = await vscode.window.showErrorMessage(
+                        'OpenAI API key not configured. Please configure it in the settings.',
+                        'Configure Now'
+                    );
+                    
+                    if (result === 'Configure Now') {
+                        console.log('Redirecting to configureExtension command');
+                        vscode.commands.executeCommand('codedoc.configureExtension');
+                    }
+                    return;
+                }
+                
                 vscode.window.showInformationMessage('Generating class documentation...');
-                await new Promise(resolve => setTimeout(resolve, 1000));
                 const editor = vscode.window.activeTextEditor;
                 if (!editor) {
                     vscode.window.showWarningMessage('No active editor found. Please open a Java file and select some code.');
                     return;
                 }
-                
 
                 let code = '';
                 let fileName = '';
@@ -109,10 +182,37 @@ export function activate(context: vscode.ExtensionContext) {
                     return;
                 }
 
-                const documentation = await openaiService.generateCodeExplanation(code, fileName);
-                mainProvider.showClassDocumentation(documentation);
-                vscode.window.showInformationMessage('Class documentation generated successfully!');
+                // Parse the workspace to find the relevant class
+                const structure: ProjectStructure = await javaParser.parseWorkspace();
+                const className = fileName.split(/[/\\]/).pop()?.replace('.java', '') || '';
+                const javaClass = structure.classes.find(cls => cls.name === className);
                 
+                if (!javaClass) {
+                    vscode.window.showWarningMessage(`Could not find class ${className} in the project.`);
+                    return;
+                }
+
+                // Find related classes (dependencies)
+                const relatedClasses = structure.classes.filter(cls => 
+                    javaClass.dependencies.includes(cls.name) || 
+                    structure.relationships.some(rel => 
+                        (rel.from === javaClass.name && rel.to === cls.name) ||
+                        (rel.to === javaClass.name && rel.from === cls.name)
+                    )
+                );
+
+                // Use the Langchain-based workflow orchestrator for class documentation with RAG
+                const response = await workflowOrchestrator.generateClassDocumentation(
+                    javaClass, 
+                    relatedClasses, 
+                    `Generate documentation for class ${javaClass.name}`
+                );
+                if (response.success && response.data) {
+                    mainProvider.showClassDocumentation(response.data);
+                    vscode.window.showInformationMessage('Class documentation generated successfully!');
+                } else {
+                    vscode.window.showErrorMessage(response.error || 'Failed to generate class documentation');
+                }
             } catch (error) {
                 if (error instanceof Error && error.message.includes('Client is not running')) {
                     vscode.window.showErrorMessage('Java language server is not ready yet. Please wait a moment and try again.');
@@ -125,6 +225,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.exportClassDocs', async (content: string) => {
+            console.log('codedoc.exportClassDocs command executed');
             if (!content) {
                 vscode.window.showWarningMessage('No documentation content to export.');
                 return;
@@ -133,7 +234,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 const doc = await vscode.workspace.openTextDocument({
                     content: content,
-                    language: content.startsWith('#') ? '``' : undefined  // Use markdown language if content is markdown
+                    language: content.startsWith('#') ? '``' : undefined  // Use code block language if content is code
                 });
                 
                 await vscode.window.showTextDocument(doc);
@@ -142,6 +243,48 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage(`Error exporting documentation: ${error}`);
             }
         }));
+
+    // Add chat message processing command
+    context.subscriptions.push(
+        vscode.commands.registerCommand('codedoc.processChatMessage', async (message: string) => {
+            console.log('codedoc.processChatMessage command executed with message:', message);
+            try {
+                // Check if API key is configured
+                const config = vscode.workspace.getConfiguration('codedoc');
+                const apiKey = config.get<string>('openaiApiKey');
+                
+                if (!apiKey) {
+                    const result = await vscode.window.showErrorMessage(
+                        'OpenAI API key not configured. Please configure it in the settings.',
+                        'Configure Now'
+                    );
+                    
+                    if (result === 'Configure Now') {
+                        console.log('Redirecting to configureExtension command');
+                        vscode.commands.executeCommand('codedoc.configureExtension');
+                    }
+                    return;
+                }
+                
+                // Parse the workspace to get project structure for context
+                const structure: ProjectStructure = await javaParser.parseWorkspace();
+                console.log('Parsed project structure:', structure);
+                
+                // Use the Langchain-based workflow orchestrator with RAG for chat
+                const response = await workflowOrchestrator.handleChatRequest(message, { projectStructure: structure });
+                console.log('Workflow orchestrator response:', response);
+                
+                if (response.success && response.data) {
+                    mainProvider.showChatResponse(response); // Pass the entire response, not just response.data
+                } else {
+                    mainProvider.showChatError(response.error || 'Failed to process chat message');
+                }
+            } catch (error) {
+                console.error('Error processing chat message:', error);
+                mainProvider.showChatError(`Error processing chat message: ${error}`);
+            }
+        })
+    );
 
     vscode.commands.executeCommand('setContext', 'codedoc.chatViewEnabled', true);
 
@@ -157,6 +300,8 @@ export function activate(context: vscode.ExtensionContext) {
         }, 2000);
     });
     context.subscriptions.push(watcher);
+    
+    console.log('CodeDoc extension activation completed');
 }
 
 export function deactivate() {
@@ -282,8 +427,8 @@ async function configureModel(): Promise<boolean> {
 async function configureMaxTokens(): Promise<boolean> {
     const maxTokens = await vscode.window.showInputBox({
         prompt: 'Enter maximum tokens for OpenAI responses',
-        placeHolder: '2000',
-        value: vscode.workspace.getConfiguration('codedoc').get<number>('maxTokens', 2000).toString(),
+        placeHolder: '500',
+        value: vscode.workspace.getConfiguration('codedoc').get<number>('maxTokens', 500).toString(),
         validateInput: (value) => {
             const num = parseInt(value);
             if (isNaN(num) || num < 100 || num > 4000) {

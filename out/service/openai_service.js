@@ -45,7 +45,7 @@ class OpenAIService {
     maxTokens = 2000;
     temperature = 0.3;
     constructor() {
-        this.initializeOpenAI();
+        // We don't initialize the OpenAI client here to avoid requiring API key during extension activation
     }
     async initializeOpenAI() {
         const config = vscode.workspace.getConfiguration('codedoc');
@@ -62,10 +62,14 @@ class OpenAIService {
     async reinitialize() {
         await this.initializeOpenAI();
     }
-    async generateClassDocumentation(javaClass, relatedClasses = []) {
+    ensureInitialized() {
         if (!this.openai) {
-            throw new Error('OpenAI API key not configured. Please set it in settings.');
+            throw new Error('OpenAI service not initialized. Please configure your API key.');
         }
+    }
+    async generateClassDocumentation(javaClass, relatedClasses = []) {
+        await this.initializeOpenAI();
+        this.ensureInitialized();
         const prompt = this.createClassDocumentationPrompt(javaClass, relatedClasses);
         try {
             const response = await this.openai.chat.completions.create({
@@ -91,9 +95,8 @@ class OpenAIService {
         }
     }
     async generateProjectOverview(structure) {
-        if (!this.openai) {
-            throw new Error('OpenAI API key not configured');
-        }
+        await this.initializeOpenAI();
+        this.ensureInitialized();
         const prompt = this.createProjectOverviewPrompt(structure);
         try {
             const response = await this.openai.chat.completions.create({
@@ -119,9 +122,8 @@ class OpenAIService {
         }
     }
     async generateCodeExplanation(code, fileName) {
-        if (!this.openai) {
-            throw new Error('OpenAI API key not configured');
-        }
+        await this.initializeOpenAI();
+        this.ensureInitialized();
         const prompt = this.createCodeExplanationPrompt(code, fileName);
         try {
             const response = await this.openai.chat.completions.create({
@@ -147,9 +149,8 @@ class OpenAIService {
         }
     }
     async answerCodeQuestion(question, context) {
-        if (!this.openai) {
-            throw new Error('OpenAI API key not configured');
-        }
+        await this.initializeOpenAI();
+        this.ensureInitialized();
         const contextPrompt = this.createContextPrompt(context);
         const fullPrompt = `${contextPrompt}\n\nQuestion: ${question}`;
         try {

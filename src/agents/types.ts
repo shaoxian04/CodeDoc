@@ -1,5 +1,11 @@
 export interface AgentContext {
+    requestType?: string;
     projectStructure?: any;
+    javaClass?: any;
+    relatedClasses?: any[];
+    userInput?: string;
+    projectContext?: any;
+    task?: string;
     userQuery?: string;
     selectedCode?: string;
     filePath?: string;
@@ -7,14 +13,11 @@ export interface AgentContext {
 }
 
 export interface AgentResponse {
-    content: string;
-    type: 'documentation' | 'visualization' | 'chat';
-    action?: 'generate_docs' | 'generate_diagram' | 'answer_question' | 'export_docs';
-    metadata?: Record<string, any>;
+    success: boolean;
+    data?: any;
+    error?: string;
 }
 
-export interface BaseAgent {
-    name: string;
-    description: string;
-    execute(context: AgentContext): Promise<AgentResponse>;
+export interface Agent {
+    execute(context: any): Promise<any>;
 }

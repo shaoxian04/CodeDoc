@@ -128,12 +128,98 @@ class MainViewProvider {
             });
         }
     }
-    _handleUserMessage(message) {
+    showChatResponse(response) {
+        console.log('showChatResponse called with:', response);
+        if (this._view) {
+            // The response comes from the workflow orchestrator which wraps the chat agent response
+            // So we need to unwrap it first
+            let chatResponse = response;
+            if (response && response.success && response.data) {
+                // Unwrap the response from the workflow orchestrator
+                chatResponse = response.data;
+            }
+            console.log('Unwrapped chat response:', chatResponse);
+            // Format the response based on the action type
+            switch (chatResponse.action) {
+                case 'generateDocumentation':
+                    // Handle documentation generation
+                    // The documentation content is directly in chatResponse.data
+                    let documentationContent = chatResponse.data;
+                    console.log('Documentation content:', documentationContent);
+                    if (documentationContent) {
+                        // Show the generated documentation in the explanation tab
+                        const htmlContent = (0, marked_1.marked)(documentationContent);
+                        this._view.webview.postMessage({
+                            type: 'showExplanation',
+                            text: htmlContent,
+                            markdown: documentationContent
+                        });
+                        // Show a message in the chat
+                        this._view.webview.postMessage({
+                            type: 'botResponse',
+                            text: chatResponse.message || 'I\'ve generated the documentation for you. You can find it in the Code Explanation tab.'
+                        });
+                    }
+                    else {
+                        this._view.webview.postMessage({
+                            type: 'botResponse',
+                            text: chatResponse.message || 'I\'ve generated the documentation for you.'
+                        });
+                    }
+                    break;
+                case 'generateVisualization':
+                    // Handle visualization generation
+                    if (chatResponse.message) {
+                        this._view.webview.postMessage({
+                            type: 'botResponse',
+                            text: chatResponse.message
+                        });
+                    }
+                    else {
+                        this._view.webview.postMessage({
+                            type: 'botResponse',
+                            text: 'I\'ve created the visualization for you.'
+                        });
+                    }
+                    break;
+                case 'answerQuestion':
+                    this._view.webview.postMessage({
+                        type: 'botResponse',
+                        text: chatResponse.message || 'Here\'s what I found:'
+                    });
+                    break;
+                case 'clarify':
+                    this._view.webview.postMessage({
+                        type: 'botResponse',
+                        text: chatResponse.message || 'I\'m not sure what you want to do. You can ask me to generate documentation, create visualizations, or answer questions about your code.'
+                    });
+                    break;
+                default:
+                    this._view.webview.postMessage({
+                        type: 'botResponse',
+                        text: chatResponse.message || 'I\'ve processed your request.'
+                    });
+            }
+        }
+    }
+    showChatError(error) {
         if (this._view) {
             this._view.webview.postMessage({
                 type: 'botResponse',
-                text: `I received: "${message}". AI integration coming soon!`
+                text: `❌ Error: ${error}`
             });
+        }
+    }
+    _handleUserMessage(message) {
+        // Send message to backend for processing by the Langchain-based chat agent
+        if (this._view) {
+            // Show loading indicator
+            this._view.webview.postMessage({
+                type: 'botResponse',
+                text: 'Thinking...'
+            });
+            // Send message to backend
+            vscode.commands.executeCommand('codedoc.processChatMessage', message);
         }
     }
     _handleNodeSelection(nodeId) {
@@ -981,10 +1067,73 @@ class MainViewProvider {
                 }
                 switchTab('explanation');
                 break;
+            case 'botResponse':
+                showBotResponse(message.text);
+                break;
             case 'refreshing':
                 break;
         }
     });
+
+    function showBotResponse(text) {
+        const chatMessages = document.getElementById('chatMessages');
+        const placeholder = chatMessages.querySelector('.placeholder');
+        if (placeholder) {
+            placeholder.remove();
+        }
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message bot-message';
+        messageDiv.innerHTML = text;
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        // Clear input
+        document.getElementById('chatInput').value = '';
+    }
+
+    // Add chat functionality
+    document.addEventListener('DOMContentLoaded', () => {
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+
+        // Auto-resize textarea
+        chatInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // Send message on button click
+        sendButton.addEventListener('click', () => {
+            const message = chatInput.value.trim();
+            if (message) {
+                // Add user message to chat
+                const chatMessages = document.getElementById('chatMessages');
+                const placeholder = chatMessages.querySelector('.placeholder');
+                if (placeholder) {
+                    placeholder.remove();
+                }
+
+                const userMessageDiv = document.createElement('div');
+                userMessageDiv.className = 'message user-message';
+                userMessageDiv.textContent = message;
+                chatMessages.appendChild(userMessageDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                // Send to backend
+                vscode.postMessage({ type: 'sendMessage', text: message });
+            }
+        });
+
+        // Send message on Enter key (without Shift)
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendButton.click();
+            }
+        });
+    });
+
 </script>
 
         </body>
