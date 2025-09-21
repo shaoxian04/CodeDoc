@@ -105,6 +105,10 @@ class JavaParser {
             const isController = this.isSpringController(annotations);
             const baseMapping = this.extractBaseMapping(annotations);
             const endpoints = isController ? this.extractEndpoints(methods, baseMapping) : [];
+            // Analyze Spring patterns
+            const springAnnotations = this.extractSpringAnnotations(annotations);
+            const springPatterns = this.detectSpringPatterns(springAnnotations, className);
+            const springDependencies = this.extractSpringDependencies(fields, content);
             const result = {
                 name: className,
                 filePath: sanitizedPath, // Use sanitized path
@@ -117,7 +121,10 @@ class JavaParser {
                 implements: implementsClasses,
                 dependencies,
                 isController,
-                endpoints
+                endpoints,
+                springAnnotations,
+                springPatterns,
+                springDependencies
             };
             console.log('Parsed class result:', result);
             return result;
@@ -458,6 +465,129 @@ class JavaParser {
         const cleanBase = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
         const cleanMethod = methodPath.startsWith('/') ? methodPath : `/${methodPath}`;
         return cleanBase + cleanMethod;
+    }
+    // Spring Pattern Analysis Methods
+    extractSpringAnnotations(annotations) {
+        const springAnnotations = [];
+        // Common Spring annotations
+        const springAnnotationNames = [
+            '@Service', '@Controller', '@RestController', '@Repository',
+            '@Component', '@Configuration', '@Autowired', '@Qualifier',
+            '@RequestMapping', '@GetMapping', '@PostMapping', '@PutMapping',
+            '@DeleteMapping', '@Transactional', '@Value', '@Bean'
+        ];
+        for (const annotation of annotations) {
+            for (const springAnnotation of springAnnotationNames) {
+                if (annotation.includes(springAnnotation)) {
+                    const parameters = this.extractAnnotationParameters(annotation);
+                    springAnnotations.push({
+                        name: springAnnotation,
+                        parameters
+                    });
+                    break;
+                }
+            }
+        }
+        return springAnnotations;
+    }
+    extractAnnotationParameters(annotation) {
+        const parameters = {};
+        // Simple parameter extraction for common cases like @RequestMapping(value = "/api")
+        const paramMatch = annotation.match(/\((.*)\)/);
+        if (paramMatch) {
+            const paramString = paramMatch[1];
+            // Handle simple value parameter
+            if (paramString.includes('=')) {
+                const pairs = paramString.split(',');
+                for (const pair of pairs) {
+                    const [key, value] = pair.split('=').map(s => s.trim());
+                    if (key && value) {
+                        parameters[key] = value.replace(/['"]/g, '');
+                    }
+                }
+            }
+            else {
+                // Handle single value like @RequestMapping("/api")
+                parameters['value'] = paramString.replace(/['"]/g, '');
+            }
+        }
+        return parameters;
+    }
+    detectSpringPatterns(springAnnotations, className) {
+        const patterns = [];
+        for (const annotation of springAnnotations) {
+            switch (annotation.name) {
+                case '@Controller':
+                    patterns.push({
+                        type: 'CONTROLLER',
+                        description: 'Spring MVC Controller - handles web requests and returns views',
+                        layerType: 'PRESENTATION'
+                    });
+                    break;
+                case '@RestController':
+                    patterns.push({
+                        type: 'REST_CONTROLLER',
+                        description: 'Spring REST Controller - handles HTTP requests and returns JSON/XML responses',
+                        layerType: 'PRESENTATION'
+                    });
+                    break;
+                case '@Service':
+                    patterns.push({
+                        type: 'SERVICE',
+                        description: 'Spring Service Layer - contains business logic and coordinates between controllers and repositories',
+                        layerType: 'BUSINESS'
+                    });
+                    break;
+                case '@Repository':
+                    patterns.push({
+                        type: 'REPOSITORY',
+                        description: 'Spring Data Access Layer - handles database operations and data persistence',
+                        layerType: 'DATA'
+                    });
+                    break;
+                case '@Configuration':
+                    patterns.push({
+                        type: 'CONFIGURATION',
+                        description: 'Spring Configuration Class - defines beans and application configuration',
+                        layerType: 'CONFIGURATION'
+                    });
+                    break;
+                case '@Component':
+                    patterns.push({
+                        type: 'COMPONENT',
+                        description: 'Spring Component - generic Spring-managed bean',
+                        layerType: 'COMPONENT'
+                    });
+                    break;
+            }
+        }
+        return patterns;
+    }
+    extractSpringDependencies(fields, content) {
+        const dependencies = [];
+        for (const field of fields) {
+            // Check for @Autowired annotation
+            if (field.annotations.some(ann => ann.includes('@Autowired'))) {
+                dependencies.push({
+                    fieldName: field.name,
+                    type: field.type,
+                    injectionType: 'FIELD',
+                    annotation: '@Autowired'
+                });
+            }
+            // Check for @Qualifier annotation
+            const qualifierAnnotation = field.annotations.find(ann => ann.includes('@Qualifier'));
+            if (qualifierAnnotation) {
+                dependencies.push({
+                    fieldName: field.name,
+                    type: field.type,
+                    injectionType: 'FIELD',
+                    annotation: qualifierAnnotation
+                });
+            }
+        }
+        // TODO: Add constructor and setter injection detection in future enhancement
+        return dependencies;
     }
 }
 exports.JavaParser = JavaParser;
