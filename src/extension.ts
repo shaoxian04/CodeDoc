@@ -131,14 +131,16 @@ export function activate(context: vscode.ExtensionContext) {
         if (response.success && response.data) {
           // Update visualization with enhanced data
           mainProvider.updateVisualization(structure);
-          
+
           // Also show the AI-generated architecture description if available
           if (response.textDescription) {
             mainProvider.showArchitectureDescription(response.textDescription);
           }
-          
+
           await vscode.commands.executeCommand("codedoc.mainView.focus");
-          vscode.window.showInformationMessage("Code visualization updated with AI insights!");
+          vscode.window.showInformationMessage(
+            "Code visualization updated with AI insights!"
+          );
         } else {
           vscode.window.showErrorMessage(
             response.error || "Failed to generate visualization"
@@ -314,143 +316,182 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Diagram generation commands
   context.subscriptions.push(
-    vscode.commands.registerCommand("codedoc.generateDiagram", async (params: any) => {
-      console.log("codedoc.generateDiagram command executed", params);
-      try {
-        const config = vscode.workspace.getConfiguration("codedoc");
-        const apiKey = config.get<string>("openaiApiKey");
-
-        if (!apiKey) {
-          vscode.window.showErrorMessage(
-            "OpenAI API key not configured. Please configure it in the settings."
-          );
-          return;
-        }
-
-        // Generate diagram using the enhanced visualization agent
-        const response = await workflowOrchestrator.generateDiagram(params);
-        
-        if (response.success && response.data) {
-          mainProvider.showGeneratedDiagram(response.data);
-        } else {
-          vscode.window.showErrorMessage(
-            response.error || "Failed to generate diagram"
-          );
-        }
-      } catch (error) {
-        console.error("Error generating diagram:", error);
-        vscode.window.showErrorMessage("Failed to generate diagram");
-      }
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("codedoc.exportDiagram", async (diagramData: any) => {
-      console.log("codedoc.exportDiagram command executed");
-      try {
-        const fileName = `${diagramData.type || 'diagram'}-${Date.now()}.md`;
-        const uri = await vscode.window.showSaveDialog({
-          defaultUri: vscode.Uri.file(fileName),
-          filters: {
-            'Markdown files': ['md']
-          }
-        });
-        
-        if (uri) {
-          await vscode.workspace.fs.writeFile(uri, Buffer.from(diagramData.rawContent, 'utf8'));
-          vscode.window.showInformationMessage(`Diagram exported to ${uri.fsPath}`);
-        }
-      } catch (error) {
-        console.error("Error exporting diagram:", error);
-        vscode.window.showErrorMessage("Failed to export diagram");
-      }
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("codedoc.previewDiagram", async (diagramData: any) => {
-      console.log("codedoc.previewDiagram command executed");
-      try {
-        // Check if diagramData has the required content
-        if (!diagramData || !diagramData.rawContent) {
-          vscode.window.showErrorMessage("No diagram content available to preview");
-          return;
-        }
-
-        // Create temp file in workspace or system temp directory
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        const fileName = `temp-diagram-${Date.now()}.md`;
-        
-        let tempUri: vscode.Uri;
-        if (workspaceFolder) {
-          tempUri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
-        } else {
-          // Fallback to system temp directory
-          const os = require('os');
-          const path = require('path');
-          tempUri = vscode.Uri.file(path.join(os.tmpdir(), fileName));
-        }
-        
-        await vscode.workspace.fs.writeFile(tempUri, Buffer.from(diagramData.rawContent, 'utf8'));
-        const document = await vscode.workspace.openTextDocument(tempUri);
-        await vscode.window.showTextDocument(document);
-        
-        vscode.window.showInformationMessage("Diagram opened in editor. You can copy the content or save it.");
-        
-        // Clean up temp file after a delay
-        setTimeout(async () => {
-          try {
-            await vscode.workspace.fs.delete(tempUri);
-          } catch (e) {
-            // Ignore cleanup errors
-            console.log("Could not clean up temp file:", e);
-          }
-        }, 60000); // Increased to 60 seconds
-      } catch (error) {
-        console.error("Error previewing diagram:", error);
-        vscode.window.showErrorMessage(`Failed to preview diagram: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("codedoc.saveDiagramToDocs", async (diagramData: any) => {
-      console.log("codedoc.saveDiagramToDocs command executed");
-      try {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-          vscode.window.showErrorMessage("No workspace folder found");
-          return;
-        }
-
-        const docsPath = vscode.Uri.joinPath(workspaceFolder.uri, 'docs', 'architecture');
-        
-        // Create docs/architecture directory if it doesn't exist
+    vscode.commands.registerCommand(
+      "codedoc.generateDiagram",
+      async (params: any) => {
+        console.log("codedoc.generateDiagram command executed", params);
         try {
-          await vscode.workspace.fs.createDirectory(docsPath);
-        } catch (e) {
-          // Directory might already exist
-        }
+          const config = vscode.workspace.getConfiguration("codedoc");
+          const apiKey = config.get<string>("openaiApiKey");
 
-        const fileName = `${diagramData.type || 'diagram'}-${Date.now()}.md`;
-        const fileUri = vscode.Uri.joinPath(docsPath, fileName);
-        
-        await vscode.workspace.fs.writeFile(fileUri, Buffer.from(diagramData.rawContent, 'utf8'));
-        vscode.window.showInformationMessage(`Diagram saved to docs/architecture/${fileName}`);
-        
-        // Optionally open the file
-        const openFile = await vscode.window.showInformationMessage(
-          "Diagram saved successfully!", 
-          "Open File"
-        );
-        if (openFile === "Open File") {
-          await vscode.window.showTextDocument(fileUri);
+          if (!apiKey) {
+            vscode.window.showErrorMessage(
+              "OpenAI API key not configured. Please configure it in the settings."
+            );
+            return;
+          }
+
+          // Generate diagram using the enhanced visualization agent
+          const response = await workflowOrchestrator.generateDiagram(params);
+
+          if (response.success && response.data) {
+            mainProvider.showGeneratedDiagram(response.data);
+          } else {
+            vscode.window.showErrorMessage(
+              response.error || "Failed to generate diagram"
+            );
+          }
+        } catch (error) {
+          console.error("Error generating diagram:", error);
+          vscode.window.showErrorMessage("Failed to generate diagram");
         }
-      } catch (error) {
-        console.error("Error saving diagram to docs:", error);
-        vscode.window.showErrorMessage("Failed to save diagram to docs folder");
       }
-    })
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "codedoc.exportDiagram",
+      async (diagramData: any) => {
+        console.log("codedoc.exportDiagram command executed");
+        try {
+          const fileName = `${diagramData.type || "diagram"}-${Date.now()}.md`;
+          const uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file(fileName),
+            filters: {
+              "Markdown files": ["md"],
+            },
+          });
+
+          if (uri) {
+            await vscode.workspace.fs.writeFile(
+              uri,
+              Buffer.from(diagramData.rawContent, "utf8")
+            );
+            vscode.window.showInformationMessage(
+              `Diagram exported to ${uri.fsPath}`
+            );
+          }
+        } catch (error) {
+          console.error("Error exporting diagram:", error);
+          vscode.window.showErrorMessage("Failed to export diagram");
+        }
+      }
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "codedoc.previewDiagram",
+      async (diagramData: any) => {
+        console.log("codedoc.previewDiagram command executed");
+        try {
+          // Check if diagramData has the required content
+          if (!diagramData || !diagramData.rawContent) {
+            vscode.window.showErrorMessage(
+              "No diagram content available to preview"
+            );
+            return;
+          }
+
+          // Create temp file in workspace or system temp directory
+          const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+          const fileName = `temp-diagram-${Date.now()}.md`;
+
+          let tempUri: vscode.Uri;
+          if (workspaceFolder) {
+            tempUri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
+          } else {
+            // Fallback to system temp directory
+            const os = require("os");
+            const path = require("path");
+            tempUri = vscode.Uri.file(path.join(os.tmpdir(), fileName));
+          }
+
+          await vscode.workspace.fs.writeFile(
+            tempUri,
+            Buffer.from(diagramData.rawContent, "utf8")
+          );
+          const document = await vscode.workspace.openTextDocument(tempUri);
+          await vscode.window.showTextDocument(document);
+
+          vscode.window.showInformationMessage(
+            "Diagram opened in editor. You can copy the content or save it."
+          );
+
+          // Clean up temp file after a delay
+          setTimeout(async () => {
+            try {
+              await vscode.workspace.fs.delete(tempUri);
+            } catch (e) {
+              // Ignore cleanup errors
+              console.log("Could not clean up temp file:", e);
+            }
+          }, 60000); // Increased to 60 seconds
+        } catch (error) {
+          console.error("Error previewing diagram:", error);
+          vscode.window.showErrorMessage(
+            `Failed to preview diagram: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`
+          );
+        }
+      }
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "codedoc.saveDiagramToDocs",
+      async (diagramData: any) => {
+        console.log("codedoc.saveDiagramToDocs command executed");
+        try {
+          const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+          if (!workspaceFolder) {
+            vscode.window.showErrorMessage("No workspace folder found");
+            return;
+          }
+
+          const docsPath = vscode.Uri.joinPath(
+            workspaceFolder.uri,
+            "docs",
+            "architecture"
+          );
+
+          // Create docs/architecture directory if it doesn't exist
+          try {
+            await vscode.workspace.fs.createDirectory(docsPath);
+          } catch (e) {
+            // Directory might already exist
+          }
+
+          const fileName = `${diagramData.type || "diagram"}-${Date.now()}.md`;
+          const fileUri = vscode.Uri.joinPath(docsPath, fileName);
+
+          await vscode.workspace.fs.writeFile(
+            fileUri,
+            Buffer.from(diagramData.rawContent, "utf8")
+          );
+          vscode.window.showInformationMessage(
+            `Diagram saved to docs/architecture/${fileName}`
+          );
+
+          // Optionally open the file
+          const openFile = await vscode.window.showInformationMessage(
+            "Diagram saved successfully!",
+            "Open File"
+          );
+          if (openFile === "Open File") {
+            await vscode.window.showTextDocument(fileUri);
+          }
+        } catch (error) {
+          console.error("Error saving diagram to docs:", error);
+          vscode.window.showErrorMessage(
+            "Failed to save diagram to docs folder"
+          );
+        }
+      }
+    )
   );
 
   // Add chat message processing command

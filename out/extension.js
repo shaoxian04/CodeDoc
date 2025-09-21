@@ -259,15 +259,15 @@ function activate(context) {
     context.subscriptions.push(vscode.commands.registerCommand("codedoc.exportDiagram", async (diagramData) => {
         console.log("codedoc.exportDiagram command executed");
         try {
-            const fileName = `${diagramData.type || 'diagram'}-${Date.now()}.md`;
+            const fileName = `${diagramData.type || "diagram"}-${Date.now()}.md`;
             const uri = await vscode.window.showSaveDialog({
                 defaultUri: vscode.Uri.file(fileName),
                 filters: {
-                    'Markdown files': ['md']
-                }
+                    "Markdown files": ["md"],
+                },
             });
             if (uri) {
-                await vscode.workspace.fs.writeFile(uri, Buffer.from(diagramData.rawContent, 'utf8'));
+                await vscode.workspace.fs.writeFile(uri, Buffer.from(diagramData.rawContent, "utf8"));
                 vscode.window.showInformationMessage(`Diagram exported to ${uri.fsPath}`);
             }
         }
@@ -293,11 +293,11 @@ function activate(context) {
             }
             else {
                 // Fallback to system temp directory
-                const os = require('os');
-                const path = require('path');
+                const os = require("os");
+                const path = require("path");
                 tempUri = vscode.Uri.file(path.join(os.tmpdir(), fileName));
             }
-            await vscode.workspace.fs.writeFile(tempUri, Buffer.from(diagramData.rawContent, 'utf8'));
+            await vscode.workspace.fs.writeFile(tempUri, Buffer.from(diagramData.rawContent, "utf8"));
             const document = await vscode.workspace.openTextDocument(tempUri);
             await vscode.window.showTextDocument(document);
             vscode.window.showInformationMessage("Diagram opened in editor. You can copy the content or save it.");
@@ -314,7 +314,7 @@ function activate(context) {
         }
         catch (error) {
             console.error("Error previewing diagram:", error);
-            vscode.window.showErrorMessage(`Failed to preview diagram: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            vscode.window.showErrorMessage(`Failed to preview diagram: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }));
     context.subscriptions.push(vscode.commands.registerCommand("codedoc.saveDiagramToDocs", async (diagramData) => {
@@ -325,7 +325,7 @@ function activate(context) {
                 vscode.window.showErrorMessage("No workspace folder found");
                 return;
             }
-            const docsPath = vscode.Uri.joinPath(workspaceFolder.uri, 'docs', 'architecture');
+            const docsPath = vscode.Uri.joinPath(workspaceFolder.uri, "docs", "architecture");
             // Create docs/architecture directory if it doesn't exist
             try {
                 await vscode.workspace.fs.createDirectory(docsPath);
@@ -333,9 +333,9 @@ function activate(context) {
             catch (e) {
                 // Directory might already exist
             }
-            const fileName = `${diagramData.type || 'diagram'}-${Date.now()}.md`;
+            const fileName = `${diagramData.type || "diagram"}-${Date.now()}.md`;
             const fileUri = vscode.Uri.joinPath(docsPath, fileName);
-            await vscode.workspace.fs.writeFile(fileUri, Buffer.from(diagramData.rawContent, 'utf8'));
+            await vscode.workspace.fs.writeFile(fileUri, Buffer.from(diagramData.rawContent, "utf8"));
             vscode.window.showInformationMessage(`Diagram saved to docs/architecture/${fileName}`);
             // Optionally open the file
             const openFile = await vscode.window.showInformationMessage("Diagram saved successfully!", "Open File");
