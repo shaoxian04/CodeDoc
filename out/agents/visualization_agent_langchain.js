@@ -527,10 +527,41 @@ classDiagram
     async generateClassDiagram(classes, scope, module) {
         const scopeText = scope === 'module' ? ` (${module})` : '';
         const title = `Class Diagram${scopeText}`;
+        // Start a mermaid fenced code block (markdown)
         let mermaidContent = '```mermaid\nclassDiagram\n';
-        // Remove duplicates and limit to first 8 classes to avoid overwhelming diagrams
+        // Deduplicate by class name, keep first occurrence; limit to 8
         const uniqueClasses = classes.filter((cls, index, self) => index === self.findIndex(c => c.name === cls.name)).slice(0, 8);
-        // Group classes by type for better organization
+        // Helper: sanitize identifier for mermaid (only word chars and underscores)
+        const makeSanitizedIdGenerator = () => {
+            const used = new Set();
+            return (name) => {
+                let id = (name || 'Class')
+                    .replace(/<[^>]*>/g, '') // drop generics <>...
+                    .replace(/[^\w]/g, '_'); // non-word chars -> _
+                if (/^\d/.test(id))
+                    id = '_' + id;
+                let base = id, i = 1;
+                while (used.has(id)) {
+                    id = `${base}_${i++}`;
+                }
+                used.add(id);
+                return id;
+            };
+        };
+        const genId = makeSanitizedIdGenerator();
+        // Helper: simplify type string: drop package prefixes and generics
+        const simplifyType = (t) => {
+            if (!t)
+                return 'Object';
+            let s = String(t);
+            s = s.replace(/<[^>]*>/g, ''); // remove generics
+            const parts = s.split('.');
+            return parts[parts.length - 1] || s;
+        };
+        // Map originalName -> sanitizedId
+        const idMap = new Map();
+        uniqueClasses.forEach(c => idMap.set(c.name, genId(c.name)));
+        // Group classes (controllers/services/repos/entities/others)
         const controllers = uniqueClasses.filter(cls => cls.springPatterns?.some((p) => p.type === 'CONTROLLER' || p.type === 'REST_CONTROLLER') ||
             cls.name.toLowerCase().includes('controller'));
         const services = uniqueClasses.filter(cls => cls.springPatterns?.some((p) => p.type === 'SERVICE') ||
@@ -542,79 +573,82 @@ classDiagram
             cls.name.toLowerCase().includes('model'));
         const others = uniqueClasses.filter(cls => !controllers.includes(cls) && !services.includes(cls) &&
             !repositories.includes(cls) && !entities.includes(cls));
-        // Add classes to diagram
-        [...controllers, ...services, ...repositories, ...entities, ...others].forEach(cls => {
-            mermaidContent += `    class ${cls.name} {\n`;
-            // Add Spring annotation or class type
+        // Order to render: controllers -> services -> repos -> entities -> others
+        const ordered = [...controllers, ...services, ...repositories, ...entities, ...others];
+        // Emit class blocks using sanitized IDs; add original name as a comment inside block
+        ordered.forEach(cls => {
+            const id = idMap.get(cls.name);
             const springPattern = cls.springPatterns?.[0];
-            if (springPattern) {
-                mermaidContent += `        <<@${springPattern.type}>>\n`;
+            // Clean stereotype: remove @ and whitespace
+            const stereotype = springPattern ? String(springPattern.type).replace(/@/g, '').replace(/\s+/g, '_') : '';
+            // Attach stereotype on the class declaration line (not inside braces)
+            if (stereotype) {
+                mermaidContent += `    class ${id} <<${stereotype}>> {\n`;
             }
-            else if (cls.name.toLowerCase().includes('exception')) {
-                mermaidContent += `        <<Exception>>\n`;
+            else {
+                mermaidContent += `    class ${id} {\n`;
             }
-            else if (cls.name.toLowerCase().includes('mapper')) {
-                mermaidContent += `        <<Mapper>>\n`;
-            }
-            else if (cls.name.toLowerCase().includes('dto')) {
-                mermaidContent += `        <<DTO>>\n`;
-            }
-            // Add key fields (limit to 2)
-            const keyFields = cls.fields?.slice(0, 2) || [];
+            // Keep original name as a comment (mermaid supports %% comments)
+            mermaidContent += `        %% ${cls.name}\n`;
+            // Add up to 2 key fields (simplified types)
+            const keyFields = (cls.fields || []).slice(0, 2);
             keyFields.forEach((field) => {
-                mermaidContent += `        -${field.name}: ${field.type || 'Object'}\n`;
+                const fname = String(field.name || 'field').replace(/[{}]/g, '');
+                const ftype = simplifyType(field.type);
+                mermaidContent += `        -${fname}: ${ftype}\n`;
             });
-            // Add key methods (limit to 3, prioritize non-getter/setter methods)
+            // Add up to 3 key methods, prefer non-getter/setter
             const allMethods = cls.methods || [];
-            const keyMethods = allMethods
-                .filter((method) => !method.name.startsWith('get') && !method.name.startsWith('set'))
-                .slice(0, 3);
-            // If no non-getter/setter methods, include some getters/setters
+            const keyMethods = allMethods.filter((m) => !String(m.name).startsWith('get') && !String(m.name).startsWith('set')).slice(0, 3);
             if (keyMethods.length === 0) {
                 keyMethods.push(...allMethods.slice(0, 2));
             }
             keyMethods.forEach((method) => {
-                const returnType = method.returnType && method.returnType !== 'void' ? `: ${method.returnType}` : '';
-                mermaidContent += `        +${method.name}()${returnType}\n`;
+                const ret = method.returnType && method.returnType !== 'void' ? `: ${simplifyType(method.returnType)}` : '';
+                const mname = String(method.name || 'method').replace(/\s+/g, '_');
+                mermaidContent += `        +${mname}()${ret}\n`;
             });
             mermaidContent += '    }\n';
         });
-        // Add meaningful relationships based on Spring patterns and naming
+        // Build relationships (use sanitized ids)
         const addedRelationships = new Set();
-        // Controller -> Service relationships
+        // Controller --> Service
         controllers.forEach(controller => {
-            const relatedService = services.find(service => controller.dependencies?.some((dep) => dep.includes(service.name)) ||
+            const relatedService = services.find(service => controller.dependencies?.some((dep) => String(dep).includes(service.name)) ||
                 service.name.toLowerCase().includes(controller.name.toLowerCase().replace('controller', '')));
             if (relatedService) {
-                const relationship = `${controller.name} --> ${relatedService.name}`;
-                if (!addedRelationships.has(relationship)) {
-                    mermaidContent += `    ${relationship} : uses\n`;
-                    addedRelationships.add(relationship);
+                const a = idMap.get(controller.name), b = idMap.get(relatedService.name);
+                const rel = `${a} --> ${b}`;
+                if (!addedRelationships.has(rel)) {
+                    mermaidContent += `    ${rel} : uses\n`;
+                    addedRelationships.add(rel);
                 }
             }
         });
-        // Service -> Repository relationships
+        // Service --> Repository
         services.forEach(service => {
-            const relatedRepo = repositories.find(repo => service.dependencies?.some((dep) => dep.includes(repo.name)) ||
+            const relatedRepo = repositories.find(repo => service.dependencies?.some((dep) => String(dep).includes(repo.name)) ||
                 repo.name.toLowerCase().includes(service.name.toLowerCase().replace('service', '')));
             if (relatedRepo) {
-                const relationship = `${service.name} --> ${relatedRepo.name}`;
-                if (!addedRelationships.has(relationship)) {
-                    mermaidContent += `    ${relationship} : uses\n`;
-                    addedRelationships.add(relationship);
+                const a = idMap.get(service.name), b = idMap.get(relatedRepo.name);
+                const rel = `${a} --> ${b}`;
+                if (!addedRelationships.has(rel)) {
+                    mermaidContent += `    ${rel} : uses\n`;
+                    addedRelationships.add(rel);
                 }
             }
         });
-        // Exception inheritance (if multiple exceptions)
+        // Exception inheritance (if multiple exceptions and a base exception)
         const exceptions = others.filter(cls => cls.name.toLowerCase().includes('exception'));
         if (exceptions.length > 1) {
-            const baseException = exceptions.find(ex => ex.name.includes('Base') || ex.name.includes('Custom'));
+            const baseException = exceptions.find(ex => /Base|Custom/i.test(ex.name));
             if (baseException) {
                 exceptions.filter(ex => ex !== baseException).forEach(ex => {
-                    const relationship = `${baseException.name} <|-- ${ex.name}`;
-                    if (!addedRelationships.has(relationship)) {
-                        mermaidContent += `    ${relationship}\n`;
-                        addedRelationships.add(relationship);
+                    const a = idMap.get(baseException.name), b = idMap.get(ex.name);
+                    const rel = `${a} <|-- ${b}`;
+                    if (!addedRelationships.has(rel)) {
+                        mermaidContent += `    ${rel}\n`;
+                        addedRelationships.add(rel);
                     }
                 });
             }

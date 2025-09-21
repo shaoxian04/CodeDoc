@@ -1641,32 +1641,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             statsPanel.style.display = 'block';
         
 
-        statsGrid.innerHTML = \`
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.totalClasses}</div>
-                <div class="stat-label">Classes</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.controllers}</div>
-                <div class="stat-label">Controllers</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.services}</div>
-                <div class="stat-label">Services</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.repositories}</div>
-                <div class="stat-label">Repositories</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.entities}</div>
-                <div class="stat-label">Entities</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.dependencies}</div>
-                <div class="stat-label">Dependencies</div>
-            </div>
-        \`;
+        statsGrid.innerHTML = '\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.totalClasses + '</div>\\n                <div class=\\"stat-label\\">Classes</div>\\n            </div>\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.controllers + '</div>\\n                <div class=\\"stat-label\\">Controllers</div>\\n            </div>\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.services + '</div>\\n                <div class=\\"stat-label\\">Services</div>\\n            </div>\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.repositories + '</div>\\n                <div class=\\"stat-label\\">Repositories</div>\\n            </div>\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.entities + '</div>\\n                <div class=\\"stat-label\\">Entities</div>\\n            </div>\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.dependencies + '</div>\\n                <div class=\\"stat-label\\">Dependencies</div>\\n            </div>\\n        ';
         
         visualizationContent.innerHTML = '<div class="architecture-layers-container"></div>';
         const layersContainer = visualizationContent.querySelector('.architecture-layers-container');
@@ -1675,22 +1650,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         if (data.layers.controllers.length > 0) {
             const controllerLayer = document.createElement('div');
             controllerLayer.className = 'architecture-layer';
-            controllerLayer.innerHTML = \`
-                <div class="layer-header controller">
-                    <span>Controller Layer (\${data.layers.controllers.length})</span>
-                </div>
-                <div class="layer-content">
-                    \${data.layers.controllers.map(cls => \`
-                        <div class="class-card" data-id="\${cls.name}">
-                            <div class="class-name">\${cls.name}</div>
-                            <div class="class-info">\${cls.package}</div>
-                            <div class="class-dependencies">
-                                Dependencies: \${data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length}
-                            </div>
-                        </div>
-                    \`).join('')}
-                </div>
-            \`;
+            controllerLayer.innerHTML = '\\n                <div class=\\"layer-header controller\\">\\n                    <span>Controller Layer (' + data.layers.controllers.length + ')</span>\\n                </div>\\n                <div class=\\"layer-content\\">\\n                    ' + data.layers.controllers.map(cls => '\\n                        <div class=\\"class-card\\" data-id=\\"' + cls.name + '\\">\\n                            <div class=\\"class-name\\">' + cls.name + '</div>\\n                            <div class=\\"class-info\\">' + cls.package + '</div>\\n                            <div class=\\"class-dependencies\\">\\n                                Dependencies: ' + data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length + '\\n                            </div>\\n                        </div>\\n                    ').join('') + '\\n                </div>\\n            ';
             layersContainer.appendChild(controllerLayer);
         }
         
@@ -1698,22 +1658,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         if (data.layers.services.length > 0) {
             const serviceLayer = document.createElement('div');
             serviceLayer.className = 'architecture-layer';
-            serviceLayer.innerHTML = \`
-                <div class="layer-header service">
-                    <span>Service Layer (\${data.layers.services.length})</span>
-                </div>
-                <div class="layer-content">
-                    \${data.layers.services.map(cls => \`
-                        <div class="class-card" data-id="\${cls.name}">
-                            <div class="class-name">\${cls.name}</div>
-                            <div class="class-info">\${cls.package}</div>
-                            <div class="class-dependencies">
-                                Dependencies: \${data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length}
-                            </div>
-                        </div>
-                    \`).join('')}
-                </div>
-            \`;
+            serviceLayer.innerHTML = '\\n                <div class=\\"layer-header service\\">\\n                    <span>Service Layer (' + data.layers.services.length + ')</span>\\n                </div>\\n                <div class=\\"layer-content\\">\\n                    ' + data.layers.services.map(cls => '\\n                        <div class=\\"class-card\\" data-id=\\"' + cls.name + '\\">\\n                            <div class=\\"class-name\\">' + cls.name + '</div>\\n                            <div class=\\"class-info\\">' + cls.package + '</div>\\n                            <div class=\\"class-dependencies\\">\\n                                Dependencies: ' + data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length + '\\n                            </div>\\n                        </div>\\n                    ').join('') + '\\n                </div>\\n            ';
             layersContainer.appendChild(serviceLayer);
         }
         
@@ -1721,22 +1666,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         if (data.layers.repositories.length > 0) {
             const repositoryLayer = document.createElement('div');
             repositoryLayer.className = 'architecture-layer';
-            repositoryLayer.innerHTML = \`
-                <div class="layer-header repository">
-                    <span>Repository Layer (\${data.layers.repositories.length})</span>
-                </div>
-                <div class="layer-content">
-                    \${data.layers.repositories.map(cls => \`
-                        <div class="class-card" data-id="\${cls.name}">
-                            <div class="class-name">\${cls.name}</div>
-                            <div class="class-info">\${cls.package}</div>
-                            <div class="class-dependencies">
-                                Dependencies: \${data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length}
-                            </div>
-                        </div>
-                    \`).join('')}
-                </div>
-            \`;
+            repositoryLayer.innerHTML = '\\n                <div class=\\"layer-header repository\\">\\n                    <span>Repository Layer (' + data.layers.repositories.length + ')</span>\\n                </div>\\n                <div class=\\"layer-content\\">\\n                    ' + data.layers.repositories.map(cls => '\\n                        <div class=\\"class-card\\" data-id=\\"' + cls.name + '\\">\\n                            <div class=\\"class-name\\">' + cls.name + '</div>\\n                            <div class=\\"class-info\\">' + cls.package + '</div>\\n                            <div class=\\"class-dependencies\\">\\n                                Dependencies: ' + data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length + '\\n                            </div>\\n                        </div>\\n                    ').join('') + '\\n                </div>\\n            ';
             layersContainer.appendChild(repositoryLayer);
         }
         
@@ -1744,22 +1674,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         if (data.layers.entities.length > 0) {
             const entityLayer = document.createElement('div');
             entityLayer.className = 'architecture-layer';
-            entityLayer.innerHTML = \`
-                <div class="layer-header entity">
-                    <span>Entity Layer (\${data.layers.entities.length})</span>
-                </div>
-                <div class="layer-content">
-                    \${data.layers.entities.map(cls => \`
-                        <div class="class-card" data-id="\${cls.name}">
-                            <div class="class-name">\${cls.name}</div>
-                            <div class="class-info">\${cls.package}</div>
-                            <div class="class-dependencies">
-                                Dependencies: \${data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length}
-                            </div>
-                        </div>
-                    \`).join('')}
-                </div>
-            \`;
+            entityLayer.innerHTML = '\\n                <div class=\\"layer-header entity\\">\\n                    <span>Entity Layer (' + data.layers.entities.length + ')</span>\\n                </div>\\n                <div class=\\"layer-content\\">\\n                    ' + data.layers.entities.map(cls => '\\n                        <div class=\\"class-card\\" data-id=\\"' + cls.name + '\\">\\n                            <div class=\\"class-name\\">' + cls.name + '</div>\\n                            <div class=\\"class-info\\">' + cls.package + '</div>\\n                            <div class=\\"class-dependencies\\">\\n                                Dependencies: ' + data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length + '\\n                            </div>\\n                        </div>\\n                    ').join('') + '\\n                </div>\\n            ';
             layersContainer.appendChild(entityLayer);
         }
         
@@ -1767,22 +1682,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         if (data.layers.others.length > 0) {
             const otherLayer = document.createElement('div');
             otherLayer.className = 'architecture-layer';
-            otherLayer.innerHTML = \`
-                <div class="layer-header">
-                    <span>Other Components (\${data.layers.others.length})</span>
-                </div>
-                <div class="layer-content">
-                    \${data.layers.others.map(cls => \`
-                        <div class="class-card" data-id="\${cls.name}">
-                            <div class="class-name">\${cls.name}</div>
-                            <div class="class-info">\${cls.package}</div>
-                            <div class="class-dependencies">
-                                Dependencies: \${data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length}
-                            </div>
-                        </div>
-                    \`).join('')}
-                </div>
-            \`;
+            otherLayer.innerHTML = '\\n                <div class=\\"layer-header\\">\\n                    <span>Other Components (' + data.layers.others.length + ')</span>\\n                </div>\\n                <div class=\\"layer-content\\">\\n                    ' + data.layers.others.map(cls => '\\n                        <div class=\\"class-card\\" data-id=\\"' + cls.name + '\\">\\n                            <div class=\\"class-name\\">' + cls.name + '</div>\\n                            <div class=\\"class-info\\">' + cls.package + '</div>\\n                            <div class=\\"class-dependencies\\">\\n                                Dependencies: ' + data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length + '\\n                            </div>\\n                        </div>\\n                    ').join('') + '\\n                </div>\\n            ';
             layersContainer.appendChild(otherLayer);
         }
         
