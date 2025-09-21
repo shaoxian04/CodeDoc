@@ -117,9 +117,39 @@ export class WorkflowOrchestrator {
     async generateVisualization(structure: ProjectStructure, userQuery?: string): Promise<AgentResponse> {
         try {
             const result = await this.visualizationAgent.execute({
-                task: 'generateArchitectureDiagram',
+                task: 'generateVisualizationData',
                 projectStructure: structure,
                 userQuery: userQuery
+            });
+            
+            return {
+                success: true,
+                data: result.visualizationData, // Return structured data for frontend
+                textDescription: result.textDescription, // Also include text description
+                visualizationSuccess: result.success
+            };
+        } catch (error) {
+            if (error instanceof Error && error.message.includes('API key not configured')) {
+                return {
+                    success: false,
+                    error: 'OpenAI API key not configured. Please configure it in the settings.'
+                };
+            }
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Failed to generate visualization'
+            };
+        }
+    }
+
+    async generateDiagram(params: any): Promise<AgentResponse> {
+        try {
+            const result = await this.visualizationAgent.execute({
+                task: 'generateSpecificDiagram',
+                diagramType: params.diagramType,
+                scope: params.scope,
+                module: params.module,
+                projectStructure: params.projectStructure
             });
             
             return {
@@ -135,7 +165,7 @@ export class WorkflowOrchestrator {
             }
             return {
                 success: false,
-                error: error instanceof Error ? error.message : 'Failed to generate visualization'
+                error: error instanceof Error ? error.message : 'Failed to generate diagram'
             };
         }
     }

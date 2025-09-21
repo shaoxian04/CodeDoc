@@ -16,6 +16,8 @@ export interface AgentResponse {
     success: boolean;
     data?: any;
     error?: string;
+    textDescription?: string;
+    visualizationSuccess?: boolean;
 }
 
 export interface Agent {

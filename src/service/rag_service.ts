@@ -1,6 +1,7 @@
 import { ProjectStructure, JavaClass } from './java_parser';
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { PromptTemplate } from "@langchain/core/prompts";
+import { UsageScanner, UsageExample } from './usage_scanner';
 import * as vscode from 'vscode';
 
 // We'll import ChatOpenAI only when needed to avoid early validation
@@ -9,9 +10,11 @@ let ChatOpenAI: any;
 export class RAGService {
     private model: any | null = null;
     private outputParser: StringOutputParser;
+    private usageScanner: UsageScanner;
 
     constructor() {
         this.outputParser = new StringOutputParser();
+        this.usageScanner = new UsageScanner();
         // We don't initialize the model here to avoid requiring API key during extension activation
     }
 
@@ -163,5 +166,98 @@ Please provide a detailed response that incorporates the context above.
         }
         
         return summary;
+    }
+
+    /**
+     * Retrieve real usage examples for a specific method
+     */
+    public async retrieveMethodUsageExamples(
+        className: string,
+        methodName: string,
+        structure: ProjectStructure
+    ): Promise<UsageExample[]> {
+        return await this.usageScanner.findMethodUsages(className, methodName, structure);
+    }
+
+    /**
+     * Retrieve usage patterns for a class (how it's typically instantiated/injected)
+     */
+    public async retrieveClassUsagePatterns(
+        className: string,
+        structure: ProjectStructure
+    ): Promise<UsageExample[]> {
+        return await this.usageScanner.findClassUsagePatterns(className, structure);
+    }
+
+    /**
+     * Enhanced context retrieval that includes real usage examples
+     */
+    public async retrieveEnhancedContext(
+        query: string, 
+        structure: ProjectStructure,
+        targetClassName?: string
+    ): Promise<any> {
+        // Get basic context
+        const basicContext = await this.retrieveContext(query, structure);
+        
+        // Add usage examples if we have a target class
+        let usageExamples: UsageExample[] = [];
+        if (targetClassName) {
+            usageExamples = await this.retrieveClassUsagePatterns(targetClassName, structure);
+        }
+        
+        return {
+            ...basicContext,
+            usageExamples,
+            hasRealExamples: usageExamples.length > 0
+        };
+    }
+
+    /**
+     * Create usage examples summary for prompt augmentation
+     */
+    public createUsageExamplesSummary(examples: UsageExample[]): string {
+        if (examples.length === 0) {
+            return "No real usage examples found in the codebase.";
+        }
+
+        const summary = examples.slice(0, 3).map((example, index) => {
+            return `
+Example ${index + 1} (from ${example.sourceClass}):
+${example.codeSnippet}
+Context: ${example.context.split('\n')[0]}
+            `.trim();
+        }).join('\n\n');
+
+        return `Real usage examples from codebase:\n${summary}`;
+    }
+
+    /**
+     * Enhanced prompt augmentation with usage examples
+     */
+    public async augmentPromptWithUsageExamples(
+        prompt: string,
+        context: any,
+        usageExamples: UsageExample[]
+    ): Promise<string> {
+        const contextSummary = this.createContextSummary(context);
+        const usageExamplesSummary = this.createUsageExamplesSummary(usageExamples);
+        
+        const augmentedPrompt = `
+Use the following context and real usage examples to enhance your response:
+
+Context:
+${contextSummary}
+
+${usageExamplesSummary}
+
+Original request:
+${prompt}
+
+Please provide a detailed response that incorporates both the context and real usage examples above.
+Focus on practical, real-world usage patterns when available.
+        `.trim();
+        
+        return augmentedPrompt;
     }
 }

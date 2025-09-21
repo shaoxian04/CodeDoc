@@ -35,14 +35,17 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RAGService = void 0;
 const output_parsers_1 = require("@langchain/core/output_parsers");
+const usage_scanner_1 = require("./usage_scanner");
 const vscode = __importStar(require("vscode"));
 // We'll import ChatOpenAI only when needed to avoid early validation
 let ChatOpenAI;
 class RAGService {
     model = null;
     outputParser;
+    usageScanner;
     constructor() {
         this.outputParser = new output_parsers_1.StringOutputParser();
+        this.usageScanner = new usage_scanner_1.UsageScanner();
         // We don't initialize the model here to avoid requiring API key during extension activation
     }
     async initializeModel() {
@@ -169,6 +172,73 @@ Please provide a detailed response that incorporates the context above.
             }
         }
         return summary;
+    }
+    /**
+     * Retrieve real usage examples for a specific method
+     */
+    async retrieveMethodUsageExamples(className, methodName, structure) {
+        return await this.usageScanner.findMethodUsages(className, methodName, structure);
+    }
+    /**
+     * Retrieve usage patterns for a class (how it's typically instantiated/injected)
+     */
+    async retrieveClassUsagePatterns(className, structure) {
+        return await this.usageScanner.findClassUsagePatterns(className, structure);
+    }
+    /**
+     * Enhanced context retrieval that includes real usage examples
+     */
+    async retrieveEnhancedContext(query, structure, targetClassName) {
+        // Get basic context
+        const basicContext = await this.retrieveContext(query, structure);
+        // Add usage examples if we have a target class
+        let usageExamples = [];
+        if (targetClassName) {
+            usageExamples = await this.retrieveClassUsagePatterns(targetClassName, structure);
+        }
+        return {
+            ...basicContext,
+            usageExamples,
+            hasRealExamples: usageExamples.length > 0
+        };
+    }
+    /**
+     * Create usage examples summary for prompt augmentation
+     */
+    createUsageExamplesSummary(examples) {
+        if (examples.length === 0) {
+            return "No real usage examples found in the codebase.";
+        }
+        const summary = examples.slice(0, 3).map((example, index) => {
+            return `
+Example ${index + 1} (from ${example.sourceClass}):
+${example.codeSnippet}
+Context: ${example.context.split('\n')[0]}
+            `.trim();
+        }).join('\n\n');
+        return `Real usage examples from codebase:\n${summary}`;
+    }
+    /**
+     * Enhanced prompt augmentation with usage examples
+     */
+    async augmentPromptWithUsageExamples(prompt, context, usageExamples) {
+        const contextSummary = this.createContextSummary(context);
+        const usageExamplesSummary = this.createUsageExamplesSummary(usageExamples);
+        const augmentedPrompt = `
+Use the following context and real usage examples to enhance your response:
+
+Context:
+${contextSummary}
+
+${usageExamplesSummary}
+
+Original request:
+${prompt}
+
+Please provide a detailed response that incorporates both the context and real usage examples above.
+Focus on practical, real-world usage patterns when available.
+        `.trim();
+        return augmentedPrompt;
     }
 }
 exports.RAGService = RAGService;
