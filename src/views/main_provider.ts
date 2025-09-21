@@ -44,18 +44,18 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     case 'exportClassDocs':
                         this._exportClassDocumentation(message.content);
                         break;
-                    // case 'generateDiagram':
-                    //     this._handleDiagramGeneration(message);
-                    //     break;
-                    // case 'exportDiagram':
-                    //     this._handleDiagramExport(message.diagramData);
-                    //     break;
-                    // case 'previewDiagram':
-                    //     this._handleDiagramPreview(message.diagramData);
-                    //     break;
-                    // case 'saveDiagramToDocs':
-                    //     this._handleSaveDiagramToDocs(message.diagramData);
-                    //     break;
+                    case 'generateDiagram':
+                        this._handleDiagramGeneration(message);
+                        break;
+                    case 'exportDiagram':
+                        this._handleDiagramExport(message.diagramData);
+                        break;
+                    case 'previewDiagram':
+                        this._handleDiagramPreview(message.diagramData);
+                        break;
+                    case 'saveDiagramToDocs':
+                        this._handleSaveDiagramToDocs(message.diagramData);
+                        break;
                 }
             }
         );
@@ -1716,6 +1716,17 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         document.getElementById('export-class-doc-btn').addEventListener('click', exportClassDocumentation);
         document.getElementById('back-to-explanation-btn').addEventListener('click', showExplanationOptions);
 
+        // Initialize diagram generator
+        initializeDiagramGenerator();
+                    
+        // Show analysis status if no project structure is available
+        if (!currentProjectStructure) {
+            showAnalysisStatus();
+        }
+                    
+        // Test mermaid rendering
+        testMermaidRendering();
+
         switchTab('overview');
     });
 
@@ -1742,6 +1753,9 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             case 'botResponse':
                 showBotResponse(message.text);
                 break;
+             case 'analysisStarted':
+                showAnalysisStatus();
+                break;
             case 'refreshing':
                 break;
         }
@@ -1763,7 +1777,234 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         // Clear input
         document.getElementById('chatInput').value = '';
     }
+    
+    // ------------------------------------------------------------
+    // Diagram Generator Functions
+    let currentProjectStructure = null;
+    let currentDiagramData = null;
 
+    function initializeDiagramGenerator() {
+                    const scopeRadios = document.querySelectorAll('input[name="scope"]');
+                    const moduleSelector = document.getElementById('moduleSelector');
+                    const generateBtn = document.getElementById('generateDiagramBtn');
+                    const exportBtn = document.getElementById('exportDiagramBtn');
+                    const copyBtn = document.getElementById('copyDiagramBtn');
+                    const previewBtn = document.getElementById('previewInVSCodeBtn');
+                    const saveBtn = document.getElementById('saveToDocs');
+                    
+                    // Handle scope change
+                    scopeRadios.forEach(radio => {
+                        radio.addEventListener('change', function() {
+                            if (this.value === 'module') {
+                                moduleSelector.style.display = 'block';
+                                populateModuleSelector();
+                            } else {
+                                moduleSelector.style.display = 'none';
+                            }
+                        });
+                    });
+                    
+                    // Generate diagram button
+                    generateBtn.addEventListener('click', generateDiagram);
+                    
+                    // Export buttons
+                    exportBtn.addEventListener('click', exportDiagram);
+                    copyBtn.addEventListener('click', copyDiagram);
+                    previewBtn.addEventListener('click', previewInVSCode);
+                    
+                    // Test button
+                    document.getElementById('testMermaidBtn').addEventListener('click', testMermaidManually);
+                    saveBtn.addEventListener('click', saveToDocs);
+                }
+        function populateModuleSelector() {
+                    const moduleSelect = document.getElementById('moduleSelect');
+                    moduleSelect.innerHTML = '<option value="">Select a package...</option>';
+                    
+                    if (currentProjectStructure && currentProjectStructure.classes) {
+                        const packages = [...new Set(currentProjectStructure.classes.map(cls => cls.package).filter(pkg => pkg))];
+                        packages.sort().forEach(pkg => {
+                            const option = document.createElement('option');
+                            option.value = pkg;
+                            option.textContent = pkg;
+                            moduleSelect.appendChild(option);
+                        });
+                    }
+        }
+        
+        function generateDiagram() {
+                    const diagramType = document.getElementById('diagramType').value;
+                    const scope = document.querySelector('input[name="scope"]:checked').value;
+                    const selectedModule = document.getElementById('moduleSelect').value;
+                    
+                    if (scope === 'module' && !selectedModule) {
+                        alert('Please select a package/module');
+                        return;
+                    }
+                    
+                    // Check if project structure is available
+                    if (!currentProjectStructure) {
+                        showDiagramError('Project structure not available. Please analyze the project first by switching to the Overview tab and clicking "Refresh Visualization".');
+                        return;
+                    }
+                    
+                    // Show loading
+                    document.getElementById('diagramLoading').style.display = 'block';
+                    document.getElementById('diagramResult').style.display = 'none';
+                    
+                    // Send request to backend
+                    vscode.postMessage({
+                        type: 'generateDiagram',
+                        diagramType: diagramType,
+                        scope: scope,
+                        module: selectedModule
+                    });
+                }
+                function showGeneratedDiagram(diagramData) {
+                    console.log('showGeneratedDiagram called with:', diagramData);
+                    console.log('Raw content:', diagramData.rawContent);
+                    console.log('Content:', diagramData.content);
+                    
+                    const resultDiv = document.getElementById('diagramResult');
+                    const contentDiv = document.getElementById('diagramContent');
+                    const titleElement = document.getElementById('diagramTitle');
+                    const statsElement = document.getElementById('diagramStats');
+                    const loadingDiv = document.getElementById('diagramLoading');
+                    
+                    // Hide loading
+                    loadingDiv.style.display = 'none';
+                    
+                    // Store diagram data
+                    currentDiagramData = diagramData;
+                    
+                    // Update title
+                    titleElement.textContent = diagramData.title || 'Generated Diagram';
+                    
+                    // Show diagram content as before
+                    if (diagramData.content) {
+                        try {
+                            const htmlContent = marked(diagramData.content);
+                            console.log('HTML content:', htmlContent);
+                            contentDiv.innerHTML = htmlContent;
+                            
+                            // Process Mermaid diagrams after a short delay
+                            setTimeout(() => {
+                                processMermaidDiagrams(contentDiv);
+                            }, 200);
+                        } catch (error) {
+                            console.error('Error converting diagram content to HTML:', error);
+                            contentDiv.innerHTML = diagramData.content;
+                        }
+                    }
+                    
+                    // Update stats
+                    statsElement.textContent = diagramData.stats || '';
+                    
+                    // Enable export buttons
+                    document.getElementById('exportDiagramBtn').disabled = false;
+                    document.getElementById('copyDiagramBtn').disabled = false;
+                    
+                    // Show result
+                    resultDiv.style.display = 'block';
+                    
+                    // Scroll to result
+                    resultDiv.scrollIntoView({ behavior: 'smooth' });
+                }
+                function exportDiagram() {
+                    if (currentDiagramData) {
+                        vscode.postMessage({
+                            type: 'exportDiagram',
+                            diagramData: currentDiagramData
+                        });
+                    }
+                }
+                function copyDiagram() {
+                    console.log('copyDiagram called, currentDiagramData:', currentDiagramData);
+                    if (currentDiagramData && currentDiagramData.rawContent) {
+                        console.log('Copying rawContent:', currentDiagramData.rawContent);
+                        navigator.clipboard.writeText(currentDiagramData.rawContent).then(() => {
+                            // Show temporary success message
+                            const copyBtn = document.getElementById('copyDiagramBtn');
+                            const originalText = copyBtn.textContent;
+                            copyBtn.textContent = '✅ Copied!';
+                            setTimeout(() => {
+                                copyBtn.textContent = originalText;
+                            }, 2000);
+                        }).catch(error => {
+                            console.error('Failed to copy to clipboard:', error);
+                        });
+                    } else {
+                        console.error('No diagram data or rawContent available');
+                    }
+                }
+                
+                function previewInVSCode() {
+                    if (currentDiagramData) {
+                        vscode.postMessage({
+                            type: 'previewDiagram',
+                            diagramData: currentDiagramData
+                        });
+                    }
+                }
+                
+                function saveToDocs() {
+                    if (currentDiagramData) {
+                        vscode.postMessage({
+                            type: 'saveDiagramToDocs',
+                            diagramData: currentDiagramData
+                        });
+                    }
+                }
+                function showDiagramError(errorMessage) {
+                    const resultDiv = document.getElementById('diagramResult');
+                    const loadingDiv = document.getElementById('diagramLoading');
+                    const titleElement = document.getElementById('diagramTitle');
+                    const contentDiv = document.getElementById('diagramContent');
+                    const statsElement = document.getElementById('diagramStats');
+                    
+                    // Hide loading
+                    loadingDiv.style.display = 'none';
+                    
+                    // Clear diagram data
+                    currentDiagramData = null;
+                    
+                    // Update title
+                    titleElement.textContent = 'Class Diagram (Error)';
+                    
+                    // Show error message
+                    contentDiv.innerHTML = '<div class="error-message" style="color: #f48771; padding: 20px; text-align: center; border: 1px solid #f48771; border-radius: 4px; background-color: rgba(244, 135, 113, 0.1);">' +
+                        '<h4>Failed to generate diagram</h4>' +
+                        '<p>' + errorMessage + '</p>' +
+                        '</div>';
+                    
+                    // Update stats
+                    statsElement.textContent = 'Generation failed';
+                    
+                    // Disable export buttons
+                    document.getElementById('exportDiagramBtn').disabled = true;
+                    document.getElementById('copyDiagramBtn').disabled = true;
+                    
+                    // Show result
+                    resultDiv.style.display = 'block';
+                    
+                    // Scroll to result
+                    resultDiv.scrollIntoView({ behavior: 'smooth' });
+                }
+                function updateProjectStructureForDiagrams(structure) {
+                    currentProjectStructure = structure;
+                    populateModuleSelector();
+                }
+
+                function showAnalysisStatus() {
+                    document.getElementById('projectAnalysisStatus').style.display = 'block';
+                    document.getElementById('generateDiagramBtn').disabled = true;
+                }
+
+                function hideAnalysisStatus() {
+                    document.getElementById('projectAnalysisStatus').style.display = 'none';
+                    document.getElementById('generateDiagramBtn').disabled = false;
+                }
+                
+            
     // Add chat functionality
     document.addEventListener('DOMContentLoaded', () => {
         const chatInput = document.getElementById('chatInput');
