@@ -68,7 +68,6 @@ export class VisualizationAgent implements Agent {
       case "generateSpecificDiagram":
         return await this.generateSpecificDiagram(
           context.diagramType,
-          context.scope,
           context.module,
           context.projectStructure
         );
@@ -470,7 +469,6 @@ classDiagram
 
   private async generateSpecificDiagram(
     diagramType: string,
-    scope: string,
     module: string,
     structure: ProjectStructure
   ): Promise<any> {
@@ -487,12 +485,12 @@ classDiagram
 
       // Filter classes based on scope
       let filteredClasses = structure.classes;
-      if (scope === 'module' && module) {
-        filteredClasses = structure.classes.filter(cls => cls.package === module);
-        if (filteredClasses.length === 0) {
-          throw new Error(`No classes found in module: ${module}`);
-        }
-      }
+      // if (scope === 'module' && module) {
+      //   filteredClasses = structure.classes.filter(cls => cls.package === module);
+      //   if (filteredClasses.length === 0) {
+      //     throw new Error(`No classes found in module: ${module}`);
+      //   }
+      // }
 
       // Generate diagram based on type
       let diagramContent = '';
@@ -501,35 +499,35 @@ classDiagram
 
       switch (diagramType) {
         case 'component':
-          const componentResult = await this.generateComponentDiagram(filteredClasses, scope, module);
+          const componentResult = await this.generateComponentDiagram(filteredClasses);
           diagramContent = componentResult.content;
           title = componentResult.title;
           stats = componentResult.stats;
           break;
         case 'layered':
-          const layeredResult = await this.generateLayeredDiagram(filteredClasses, scope, module);
+          const layeredResult = await this.generateLayeredDiagram(filteredClasses);
           diagramContent = layeredResult.content;
           title = layeredResult.title;
           stats = layeredResult.stats;
           break;
         case 'class':
-          const classResult = await this.generateClassDiagram(filteredClasses, scope, module);
+          const classResult = await this.generateClassDiagram(filteredClasses);
           diagramContent = classResult.content;
           title = classResult.title;
           stats = classResult.stats;
           break;
         case 'package':
-          const packageResult = await this.generatePackageDiagram(structure.classes, scope, module);
+          const packageResult = await this.generatePackageDiagram(structure.classes);
           diagramContent = packageResult.content;
           title = packageResult.title;
           stats = packageResult.stats;
           break;
-        case 'sequence':
-          const sequenceResult = await this.generateSequenceDiagram(filteredClasses, scope, module);
-          diagramContent = sequenceResult.content;
-          title = sequenceResult.title;
-          stats = sequenceResult.stats;
-          break;
+        // case 'sequence':
+        //   const sequenceResult = await this.generateSequenceDiagram(filteredClasses, scope, module);
+        //   diagramContent = sequenceResult.content;
+        //   title = sequenceResult.title;
+        //   stats = sequenceResult.stats;
+        //   break;
         default:
           throw new Error(`Unknown diagram type: ${diagramType}`);
       }
@@ -544,7 +542,6 @@ classDiagram
         content: diagramContent,
         rawContent: rawMermaidContent,
         stats,
-        scope,
         module
       };
     } catch (error) {
@@ -555,15 +552,14 @@ classDiagram
         content: `<p>Failed to generate diagram: ${error instanceof Error ? error.message : 'Unknown error'}</p>`,
         rawContent: `# ${diagramType} Diagram\n\nFailed to generate diagram: ${error instanceof Error ? error.message : 'Unknown error'}`,
         stats: 'Generation failed',
-        scope,
         module
       };
     }
   }
 
-  private async generateComponentDiagram(classes: any[], scope: string, module?: string): Promise<any> {
-    const scopeText = scope === 'module' ? ` (${module})` : '';
-    const title = `Component Diagram${scopeText}`;
+  private async generateComponentDiagram(classes: any[]): Promise<any> {
+    // const scopeText = scope === 'module' ? ` (${module})` : '';
+    const title = `Component Diagram`;
     
     // Group classes by Spring patterns
     const controllers = classes.filter(cls => 
@@ -612,9 +608,9 @@ classDiagram
     };
   }
 
-  private async generateLayeredDiagram(classes: any[], scope: string, module?: string): Promise<any> {
-    const scopeText = scope === 'module' ? ` (${module})` : '';
-    const title = `Layered Architecture${scopeText}`;
+  private async generateLayeredDiagram(classes: any[]): Promise<any> {
+    // const scopeText = scope === 'module' ? ` (${module})` : '';
+    const title = `Layered Architecture`;
     
     let mermaidContent = '```mermaid\ngraph TB\n';
     mermaidContent += '    subgraph "Presentation Layer"\n';
@@ -639,9 +635,9 @@ classDiagram
     };
   }
 
-  private async generateClassDiagram(classes: any[], scope: string, module?: string): Promise<any> {
-    const scopeText = scope === 'module' ? ` (${module})` : '';
-    const title = `Class Diagram${scopeText}`;
+  private async generateClassDiagram(classes: any[]): Promise<any> {
+    //const scopeText = scope === 'module' ? ` (${module})` : '';
+    const title = `Class Diagram`;
   
     // Start a mermaid fenced code block (markdown)
     let mermaidContent = '```mermaid\nclassDiagram\n';
@@ -811,7 +807,7 @@ classDiagram
   }
   
 
-  private async generatePackageDiagram(classes: any[], scope: string, module?: string): Promise<any> {
+  private async generatePackageDiagram(classes: any[]): Promise<any> {
     const title = 'Package Dependencies';
     
     // Group classes by package
@@ -842,29 +838,29 @@ classDiagram
     };
   }
 
-  private async generateSequenceDiagram(classes: any[], scope: string, module?: string): Promise<any> {
-    const scopeText = scope === 'module' ? ` (${module})` : '';
-    const title = `Sequence Diagram${scopeText}`;
+  // private async generateSequenceDiagram(classes: any[], scope: string, module?: string): Promise<any> {
+  //   const scopeText = scope === 'module' ? ` (${module})` : '';
+  //   const title = `Sequence Diagram${scopeText}`;
     
-    let mermaidContent = '```mermaid\nsequenceDiagram\n';
-    mermaidContent += '    participant Client\n';
-    mermaidContent += '    participant Controller\n';
-    mermaidContent += '    participant Service\n';
-    mermaidContent += '    participant Repository\n';
-    mermaidContent += '    Client->>Controller: HTTP Request\n';
-    mermaidContent += '    Controller->>Service: Business Logic\n';
-    mermaidContent += '    Service->>Repository: Data Access\n';
-    mermaidContent += '    Repository-->>Service: Data\n';
-    mermaidContent += '    Service-->>Controller: Result\n';
-    mermaidContent += '    Controller-->>Client: HTTP Response\n';
-    mermaidContent += '```';
+  //   let mermaidContent = '```mermaid\nsequenceDiagram\n';
+  //   mermaidContent += '    participant Client\n';
+  //   mermaidContent += '    participant Controller\n';
+  //   mermaidContent += '    participant Service\n';
+  //   mermaidContent += '    participant Repository\n';
+  //   mermaidContent += '    Client->>Controller: HTTP Request\n';
+  //   mermaidContent += '    Controller->>Service: Business Logic\n';
+  //   mermaidContent += '    Service->>Repository: Data Access\n';
+  //   mermaidContent += '    Repository-->>Service: Data\n';
+  //   mermaidContent += '    Service-->>Controller: Result\n';
+  //   mermaidContent += '    Controller-->>Client: HTTP Response\n';
+  //   mermaidContent += '```';
     
-    const stats = 'Standard Spring request flow';
+  //   const stats = 'Standard Spring request flow';
     
-    return {
-      title,
-      content: `# ${title}\n\n${mermaidContent}`,
-      stats
-    };
-  }
+  //   return {
+  //     title,
+  //     content: `# ${title}\n\n${mermaidContent}`,
+  //     stats
+  //   };
+  // }
 }

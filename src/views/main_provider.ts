@@ -1257,10 +1257,11 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                                 <option value="layered">Layered Architecture</option>
                                 <option value="class">Class Diagram</option>
                                 <option value="package">Package Dependencies</option>
-                                <option value="sequence">Sequence Diagram</option>
+                                //<option value="sequence">Sequence Diagram</option>
                             </select>
                         </div>
                         
+                        <!--
                         <div class="control-group">
                             <label>Scope:</label>
                             <div class="radio-group">
@@ -1272,19 +1273,20 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                                 </label>
                             </div>
                         </div>
+                        --> 
                         
                         <div class="control-group" id="moduleSelector" style="display: none;">
                             <label for="moduleSelect">Package/Module:</label>
                             <select id="moduleSelect" class="control-select">
                                 <option value="">Select a package...</option>
                             </select>
-                        </div>
+                        </div> 
                         
                         <div class="button-group">
                             <button id="generateDiagramBtn" class="visualize-btn primary">🎨 Generate Diagram</button>
                             <button id="exportDiagramBtn" class="visualize-btn secondary" disabled>💾 Export as .md</button>
                             <button id="copyDiagramBtn" class="visualize-btn secondary" disabled>📋 Copy</button>
-                            <button id="testMermaidBtn" class="visualize-btn secondary">🧪 Test Mermaid</button>
+                            <!-- <button id="testMermaidBtn" class="visualize-btn secondary">🧪 Test Mermaid</button> -->
                         </div>
                     </div>
                     
@@ -1725,40 +1727,50 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         }
                     
         // Test mermaid rendering
-        testMermaidRendering();
+        //testMermaidRendering();
 
         switchTab('overview');
     });
 
     window.addEventListener('message', event => {
-        const message = event.data;
-        switch (message.type) {
-            case 'updateVisualization':
-                renderVisualization(message.data);
-                break;
-            case 'showExplanation':
-                showClassDocumentation(message.text);
-                if (message.markdown) {
-                    document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
-                }
-                switchTab('explanation');
-                break;
-            case 'showProjectOverview':
-                showProjectDocumentation(message.text);
-                if (message.markdown) {
-                    document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
-                }
-                switchTab('explanation');
-                break;
-            case 'botResponse':
-                showBotResponse(message.text);
-                break;
-             case 'analysisStarted':
-                showAnalysisStatus();
-                break;
-            case 'refreshing':
-                break;
-        }
+                    const message = event.data;
+                    switch (message.type) {
+                        case 'updateVisualization':
+                            renderVisualization(message.data);
+                            break;
+                        case 'showExplanation':
+                            showClassDocumentation(message.text);
+                            if (message.markdown) {
+                                document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
+                            }
+                            switchTab('explanation');
+                            break;
+                        case 'showProjectOverview':
+                            showProjectDocumentation(message.text);
+                            if (message.markdown) {
+                                document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
+                            }
+                            switchTab('explanation');
+                            break;
+                        case 'diagramGenerated':
+                            showGeneratedDiagram(message.data);
+                            break;
+                        case 'diagramError':
+                            showDiagramError(message.error);
+                            break;
+                        case 'updateProjectStructureForDiagrams':
+                            updateProjectStructureForDiagrams(message.data);
+                            hideAnalysisStatus();
+                            break;
+                        case 'botResponse':
+                            showBotResponse(message.text);
+                            break;
+                        case 'analysisStarted':
+                            showAnalysisStatus();
+                            break;
+                        case 'refreshing':
+                            break;
+                    }
     });
 
     function showBotResponse(text) {
@@ -1784,8 +1796,8 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     let currentDiagramData = null;
 
     function initializeDiagramGenerator() {
-                    const scopeRadios = document.querySelectorAll('input[name="scope"]');
-                    const moduleSelector = document.getElementById('moduleSelector');
+                    //const scopeRadios = document.querySelectorAll('input[name="scope"]');
+                    //const moduleSelector = document.getElementById('moduleSelector');
                     const generateBtn = document.getElementById('generateDiagramBtn');
                     const exportBtn = document.getElementById('exportDiagramBtn');
                     const copyBtn = document.getElementById('copyDiagramBtn');
@@ -1793,16 +1805,16 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     const saveBtn = document.getElementById('saveToDocs');
                     
                     // Handle scope change
-                    scopeRadios.forEach(radio => {
-                        radio.addEventListener('change', function() {
-                            if (this.value === 'module') {
-                                moduleSelector.style.display = 'block';
-                                populateModuleSelector();
-                            } else {
-                                moduleSelector.style.display = 'none';
-                            }
-                        });
-                    });
+                    // scopeRadios.forEach(radio => {
+                    //     radio.addEventListener('change', function() {
+                    //         if (this.value === 'module') {
+                    //             moduleSelector.style.display = 'block';
+                    //             populateModuleSelector();
+                    //         } else {
+                    //             moduleSelector.style.display = 'none';
+                    //         }
+                    //     });
+                    // });
                     
                     // Generate diagram button
                     generateBtn.addEventListener('click', generateDiagram);
@@ -1813,33 +1825,33 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     previewBtn.addEventListener('click', previewInVSCode);
                     
                     // Test button
-                    document.getElementById('testMermaidBtn').addEventListener('click', testMermaidManually);
+                    //document.getElementById('testMermaidBtn').addEventListener('click', testMermaidManually);
                     saveBtn.addEventListener('click', saveToDocs);
                 }
-        function populateModuleSelector() {
-                    const moduleSelect = document.getElementById('moduleSelect');
-                    moduleSelect.innerHTML = '<option value="">Select a package...</option>';
+        // function populateModuleSelector() {
+        //             const moduleSelect = document.getElementById('moduleSelect');
+        //             moduleSelect.innerHTML = '<option value="">Select a package...</option>';
                     
-                    if (currentProjectStructure && currentProjectStructure.classes) {
-                        const packages = [...new Set(currentProjectStructure.classes.map(cls => cls.package).filter(pkg => pkg))];
-                        packages.sort().forEach(pkg => {
-                            const option = document.createElement('option');
-                            option.value = pkg;
-                            option.textContent = pkg;
-                            moduleSelect.appendChild(option);
-                        });
-                    }
-        }
+        //             if (currentProjectStructure && currentProjectStructure.classes) {
+        //                 const packages = [...new Set(currentProjectStructure.classes.map(cls => cls.package).filter(pkg => pkg))];
+        //                 packages.sort().forEach(pkg => {
+        //                     const option = document.createElement('option');
+        //                     option.value = pkg;
+        //                     option.textContent = pkg;
+        //                     moduleSelect.appendChild(option);
+        //                 });
+        //             }
+        // }
         
         function generateDiagram() {
                     const diagramType = document.getElementById('diagramType').value;
-                    const scope = document.querySelector('input[name="scope"]:checked').value;
+                    //const scope = document.querySelector('input[name="scope"]:checked').value;
                     const selectedModule = document.getElementById('moduleSelect').value;
                     
-                    if (scope === 'module' && !selectedModule) {
-                        alert('Please select a package/module');
-                        return;
-                    }
+                    // if (scope === 'module' && !selectedModule) {
+                    //     alert('Please select a package/module');
+                    //     return;
+                    // }
                     
                     // Check if project structure is available
                     if (!currentProjectStructure) {
@@ -1855,7 +1867,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     vscode.postMessage({
                         type: 'generateDiagram',
                         diagramType: diagramType,
-                        scope: scope,
+                        // scope: scope,
                         module: selectedModule
                     });
                 }
@@ -1991,7 +2003,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 }
                 function updateProjectStructureForDiagrams(structure) {
                     currentProjectStructure = structure;
-                    populateModuleSelector();
+                //    populateModuleSelector();
                 }
 
                 function showAnalysisStatus() {
@@ -2000,6 +2012,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 }
 
                 function hideAnalysisStatus() {
+                    console.log('calling hideAnalysisStatus method')
                     document.getElementById('projectAnalysisStatus').style.display = 'none';
                     document.getElementById('generateDiagramBtn').disabled = false;
                 }
