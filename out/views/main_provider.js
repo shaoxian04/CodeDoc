@@ -427,11 +427,31 @@ class MainViewProvider {
     _handleSaveDiagramToDocs(diagramData) {
         vscode.commands.executeCommand('codedoc.saveDiagramToDocs', diagramData);
     }
+    // public showGeneratedDiagram(diagramData: any) {
+    //     if (this._view && this._view.webview) {
+    //         this._view.webview.postMessage({
+    //             type: 'diagramGenerated',
+    //             data: diagramData
+    //         });
+    //     }
+    // }
     showGeneratedDiagram(diagramData) {
         if (this._view && this._view.webview) {
+            // Convert diagramData.content (Markdown) to HTML
+            let htmlContent = diagramData.content;
+            // Only convert if not already HTML
+            const isHtml = htmlContent && (htmlContent.startsWith('<') ||
+                htmlContent.includes('<h1') ||
+                htmlContent.includes('<div'));
+            if (!isHtml) {
+                htmlContent = (0, marked_1.marked)(htmlContent);
+            }
             this._view.webview.postMessage({
                 type: 'diagramGenerated',
-                data: diagramData
+                data: {
+                    ...diagramData,
+                    content: htmlContent // send HTML to the webview
+                }
             });
         }
     }
@@ -1310,6 +1330,7 @@ class MainViewProvider {
                 </div>
             </div>
             
+            <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> 
             <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 
             <script>
@@ -1864,53 +1885,106 @@ class MainViewProvider {
                         module: selectedModule
                     });
                 }
+                // function showGeneratedDiagram(diagramData) {
+                //     console.log('showGeneratedDiagram called with:', diagramData);
+                //     console.log('Raw content:', diagramData.rawContent);
+                //     console.log('Content:', diagramData.content);
+                    
+                //     const resultDiv = document.getElementById('diagramResult');
+                //     const contentDiv = document.getElementById('diagramContent');
+                //     const titleElement = document.getElementById('diagramTitle');
+                //     const statsElement = document.getElementById('diagramStats');
+                //     const loadingDiv = document.getElementById('diagramLoading');
+                    
+                //     // Hide loading
+                //     loadingDiv.style.display = 'none';
+                    
+                //     // Store diagram data
+                //     currentDiagramData = diagramData;
+                    
+                //     // Update title
+                //     titleElement.textContent = diagramData.title || 'Generated Diagram';
+                    
+                //     // Show diagram content as before
+                //     if (diagramData.content) {
+                //         try {
+                //             const htmlContent = marked(diagramData.content);
+                //             console.log('HTML content:', htmlContent);
+                //             contentDiv.innerHTML = htmlContent;
+                            
+                //             // Process Mermaid diagrams after a short delay
+                //             setTimeout(() => {
+                //                 processMermaidDiagrams(contentDiv);
+                //             }, 200);
+                //         } catch (error) {
+                //             console.error('Error converting diagram content to HTML:', error);
+                //             contentDiv.innerHTML = diagramData.content;
+                //         }
+                //     }
+                    
+                //     // Update stats
+                //     statsElement.textContent = diagramData.stats || '';
+                    
+                //     // Enable export buttons
+                //     document.getElementById('exportDiagramBtn').disabled = false;
+                //     document.getElementById('copyDiagramBtn').disabled = false;
+                    
+                //     // Show result
+                //     resultDiv.style.display = 'block';
+                    
+                //     // Scroll to result
+                //     resultDiv.scrollIntoView({ behavior: 'smooth' });
+                // }
+
                 function showGeneratedDiagram(diagramData) {
                     console.log('showGeneratedDiagram called with:', diagramData);
                     console.log('Raw content:', diagramData.rawContent);
                     console.log('Content:', diagramData.content);
-                    
+
                     const resultDiv = document.getElementById('diagramResult');
                     const contentDiv = document.getElementById('diagramContent');
                     const titleElement = document.getElementById('diagramTitle');
                     const statsElement = document.getElementById('diagramStats');
                     const loadingDiv = document.getElementById('diagramLoading');
-                    
+
                     // Hide loading
                     loadingDiv.style.display = 'none';
-                    
+
                     // Store diagram data
                     currentDiagramData = diagramData;
-                    
+
                     // Update title
                     titleElement.textContent = diagramData.title || 'Generated Diagram';
-                    
-                    // Show diagram content as before
-                    if (diagramData.content) {
-                        try {
-                            const htmlContent = marked(diagramData.content);
-                            console.log('HTML content:', htmlContent);
-                            contentDiv.innerHTML = htmlContent;
-                            
-                            // Process Mermaid diagrams after a short delay
-                            setTimeout(() => {
-                                processMermaidDiagrams(contentDiv);
-                            }, 200);
-                        } catch (error) {
-                            console.error('Error converting diagram content to HTML:', error);
-                            contentDiv.innerHTML = diagramData.content;
-                        }
+
+                    // Only call marked() if content is Markdown, not HTML
+                    let htmlContent;
+                    const isHtml = diagramData.content && (
+                        diagramData.content.startsWith('<') ||
+                        diagramData.content.includes('<h1') ||
+                        diagramData.content.includes('<div')
+                    );
+                    if (isHtml) {
+                        htmlContent = diagramData.content;
+                    } else {
+                        htmlContent = window.marked(diagramData.content);
                     }
-                    
+                    contentDiv.innerHTML = htmlContent;
+
+                    // Process Mermaid diagrams after a short delay
+                    setTimeout(() => {
+                        processMermaidDiagrams(contentDiv);
+                    }, 200);
+
                     // Update stats
                     statsElement.textContent = diagramData.stats || '';
-                    
+
                     // Enable export buttons
                     document.getElementById('exportDiagramBtn').disabled = false;
                     document.getElementById('copyDiagramBtn').disabled = false;
-                    
+
                     // Show result
                     resultDiv.style.display = 'block';
-                    
+
                     // Scroll to result
                     resultDiv.scrollIntoView({ behavior: 'smooth' });
                 }
