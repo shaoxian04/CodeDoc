@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src #{cspSource} 'unsafe-inline'; script-src #{cspSource} 'unsafe-inline';">
+    <title>CodeDoc</title>
+    <link rel="stylesheet" href="#{cssUri}">
+</head>
+<body>
+            <div class="nav-tabs">
+                <button class="nav-tab active" id="tab-overview">📊 Overview</button>
+                <button class="nav-tab" id="tab-chat">🤖 AI Assistant</button>
+                <button class="nav-tab" id="tab-explanation">📖 Code Explanation</button>
+                <button class="nav-tab" id="tab-visualization2">📈 Visualization </button>
+            </div>
+            <div id="overview-tab" class="tab-content active">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="margin: 0;">📊 Architecture Overview</h3>
+                </div>
+                
+                <div id="overview-placeholder" class="visualize-section">
+                    <p>Click the "Visualize Code" button above to analyze your project and generate a visualization of your code structure.</p>
+                    <button class="visualize-btn large" id="visualize-btn-large">🔍 Get Overview</button>
+                    <p><em>This will analyze all Java files in your workspace and show the architecture diagram.</em></p>
+                </div>
+                
+                <div class="stats-panel" id="statsPanel" style="display: none;">
+                    <div class="stats-grid" id="statsGrid"></div>
+                </div>
+                <div class="visualization" id="overview-content">
+                    <div class="placeholder">Click "Visualize Code" to see your project architecture</div>
+                </div>
+                
+                <div class="info-panel" id="infoPanel">
+                    <h4 id="infoPanelTitle">Class Details</h4>
+                    <div id="infoPanelContent"></div>
+                </div>
+            </div>
+            
+            <div id="chat-tab" class="tab-content">
+                <div class="chat-container">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="placeholder">👋 Hi! Ask me about your code structure and documentation!</div>
+                    </div>
+                    <div class="chat-input-container">
+                        <textarea class="chat-input" id="chatInput" placeholder="Ask about your code..." rows="1"></textarea>
+                        <button class="send-button" id="sendButton">Send</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="explanation-tab" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="margin: 0;">📖 Code Explanation</h3>
+                </div>
+                
+                <div id="explanation-placeholder" class="visualize-section">
+                    <p>Generate documentation for your code directly from this panel.</p>
+                    
+                    <div style="margin: 20px 0; text-align: center;">
+                        <button class="visualize-btn large" id="generate-project-doc-btn" style="margin: 10px;">📄 Generate Project Overview</button>
+                        <button class="visualize-btn large" id="generate-class-doc-btn" style="margin: 10px;">📑 Generate Class Documentation</button>
+                    </div>
+                    
+                    <p><em>Select code in your editor and click "Generate Class Documentation" to explain the selected code.<br>
+                    Click "Generate Project Overview" to create documentation for the entire project.</em></p>
+                </div>
+                
+                <div id="class-documentation-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <button class="visualize-btn" id="back-to-explanation-btn">↩️ Back to Options</button>
+                        <button class="visualize-btn" id="export-class-doc-btn">💾 Export as File</button>
+                    </div>
+                    <div id="class-documentation-text" class="documentation-content"></div>
+                </div>
+            </div>
+
+            <div id="visualization2-tab" class="tab-content">
+                <div class="diagram-generator">
+                    <h3>📊 Diagram Generator</h3>
+                    
+                    <div class="generator-controls">
+                        <div class="control-group">
+                            <label for="diagramType">Diagram Type:</label>
+                            <select id="diagramType" class="control-select">
+                                <option value="component">Component Diagram</option>
+                                <option value="layered">Layered Architecture</option>
+                                <option value="class">Class Diagram</option>
+                                <option value="package">Package Dependencies</option>
+                                <option value="sequence">Sequence Diagram</option>
+                            </select>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label>Scope:</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="scope" value="project" checked> Whole Project
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="scope" value="module"> Specific Module
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="control-group" id="moduleSelector" style="display: none;">
+                            <label for="moduleSelect">Package/Module:</label>
+                            <select id="moduleSelect" class="control-select">
+                                <option value="">Select a package...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="button-group">
+                            <button id="generateDiagramBtn" class="visualize-btn primary">🎨 Generate Diagram</button>
+                            <button id="exportDiagramBtn" class="visualize-btn secondary" disabled>💾 Export as .md</button>
+                            <button id="copyDiagramBtn" class="visualize-btn secondary" disabled>📋 Copy</button>
+                            <button id="testMermaidBtn" class="visualize-btn secondary">🧪 Test Mermaid</button>
+                        </div>
+                    </div>
+                    
+                    <div id="diagramResult" class="diagram-result" style="display: none;">
+                        <div class="diagram-header">
+                            <h4 id="diagramTitle">Generated Diagram</h4>
+                            <div class="diagram-actions">
+                                <button id="previewInVSCodeBtn" class="visualize-btn small">👁 Preview in VS Code</button>
+                                <button id="saveToDocs" class="visualize-btn small">📁 Save to docs/</button>
+                            </div>
+                        </div>
+                        <div id="diagramContent" class="diagram-content"></div>
+                        <div class="diagram-info">
+                            <small id="diagramStats"></small>
+                        </div>
+                    </div>
+                    
+                    <div id="diagramLoading" class="loading-indicator" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Generating diagram...</p>
+                    </div>
+                    
+                    <div id="projectAnalysisStatus" class="analysis-status" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Analyzing project structure...</p>
+                        <small>This may take a moment for large projects</small>
+                    </div>
+                </div>
+            </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script> 
+    <script src="#{scriptUri}"></script>
+</body>
+</html>
