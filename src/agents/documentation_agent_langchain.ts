@@ -199,6 +199,53 @@ export class DocumentationAgent implements Agent {
         }
     }
 
+<<<<<<< Updated upstream
+=======
+    // Update an existing markdown file to reflect the current codebase and related files
+    private async updateMarkdownFile(structure: ProjectStructure, existing: string, relatedFiles: Array<{path:string, snippet:string}> = [], relPath?: string): Promise<string> {
+        try {
+            const model = this.initializeModel();
+            let finalPrompt = `
+                You are given an existing markdown file and several related code snippets. Update the markdown only where it is inconsistent with the code. Preserve headings and formatting when possible. Keep changes minimal and focused.
+
+                File path: ${relPath || 'unknown'}
+                Existing markdown (begin):\n{existing}\nExisting markdown (end)
+
+                Related code snippets (begin):\n{snippets}\nRelated code snippets (end)
+
+                Guidelines:
+                1. Only modify sections that are outdated or incorrect relative to the code.
+                2. Preserve examples and formatting where possible; update only necessary descriptions.
+                3. If the markdown is missing a short usage example, you may add a concise example based on the code.
+                4. Return the full updated markdown content only.
+            `;
+
+            const snippets = relatedFiles.map(r => `---\nfile: ${r.path}\n\n${r.snippet}\n---`).join('\n');
+
+            const promptTemplate = PromptTemplate.fromTemplate(finalPrompt);
+            const chain = promptTemplate.pipe(model).pipe(this.outputParser);
+            const result = await chain.invoke({ existing: existing.slice(0, 3000), snippets });
+            // Remove surrounding markdown fences if present
+            if (typeof result === 'string') {
+                let s = result.trim();
+                const fullFence = s.match(/^```[^\n]*\n([\s\S]*)\n```$/);
+                if (fullFence && fullFence[1]) {
+                    return fullFence[1].trim();
+                }
+                s = s.replace(/^```[^\n]*\n/, '');
+                s = s.replace(/\n```\s*$/, '');
+                return s.trim();
+            }
+            return result;
+        } catch (error) {
+            if (error instanceof Error && error.message.includes('API key not configured')) {
+                throw error;
+            }
+            throw new Error(`Failed to update markdown file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+>>>>>>> Stashed changes
     private createStructureSummary(structure: ProjectStructure): string {
         let summary = `Total Classes: ${structure.classes.length}\n\n`;
         
