@@ -11,7 +11,14 @@ export enum WebviewMessageType {
     ClearChat = 'clearChat',
     ShowExplanation = 'showExplanation',
     ShowProjectOverview = 'showProjectOverview',
-    BotResponse = 'botResponse'
+    BotResponse = 'botResponse',
+    // Add new diagram-related message types
+    GenerateDiagram = 'generateDiagram',
+    ExportDiagram = 'exportDiagram',
+    PreviewDiagram = 'previewDiagram',
+    SaveDiagramToDocs = 'saveDiagramToDocs',
+    DiagramGenerated = 'diagramGenerated',
+    DiagramError = 'diagramError'
 }
 
 export interface WebviewMessage {
@@ -22,4 +29,10 @@ export interface WebviewMessage {
     data?: any;
     markdown?: string;
     message?: string;
+    // Add new diagram-related properties
+    diagramType?: string;
+    scope?: string;
+    module?: string;
+    diagramData?: any;
+    error?: string;
 }
