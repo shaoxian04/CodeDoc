@@ -1284,24 +1284,9 @@ class MainViewProvider {
                                 <option value="layered">Layered Architecture</option>
                                 <option value="class">Class Diagram</option>
                                 <option value="package">Package Dependencies</option>
-                                //<option value="sequence">Sequence Diagram</option>
                             </select>
                         </div>
-                        
-                        <!--
-                        <div class="control-group">
-                            <label>Scope:</label>
-                            <div class="radio-group">
-                                <label class="radio-label">
-                                    <input type="radio" name="scope" value="project" checked> Whole Project
-                                </label>
-                                <label class="radio-label">
-                                    <input type="radio" name="scope" value="module"> Specific Module
-                                </label>
-                            </div>
-                        </div>
-                        --> 
-                        
+                              
                         <div class="control-group" id="moduleSelector" style="display: none;">
                             <label for="moduleSelect">Package/Module:</label>
                             <select id="moduleSelect" class="control-select">
@@ -1345,8 +1330,7 @@ class MainViewProvider {
                     </div>
                 </div>
             </div>
-            
-            <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> 
+             
             <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 
             <script>
@@ -1358,13 +1342,14 @@ class MainViewProvider {
                 startOnLoad: false, 
                 theme: 'dark',
                 themeVariables: {
-                darkMode: true,
-                primaryColor: '#bb86fc',
-                primaryTextColor: '#ffffff',
-                primaryBorderColor: '#bb86fc',
-                lineColor: '#ffffff',
-                secondaryColor: '#03dac6',
-                tertiaryColor: '#cf6679'
+                    darkMode: true,
+                    background: '#121212',
+                    primaryColor: '#bb86fc',
+                    primaryTextColor: '#ffffff',
+                    primaryBorderColor: '#bb86fc',
+                    lineColor: '#ffffff',
+                    secondaryColor: '#03dac6',
+                    tertiaryColor: '#cf6679'
                 }
             });
                     console.log('Mermaid initialized with dark theme');

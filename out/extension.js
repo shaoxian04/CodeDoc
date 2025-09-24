@@ -725,6 +725,7 @@ async function convertMermaidToSvg(mermaidCode) {
             theme: 'dark',
             themeVariables: {
               darkMode: true,
+              background: '#121212',
               primaryColor: '#bb86fc',
               primaryTextColor: '#ffffff',
               primaryBorderColor: '#bb86fc',
@@ -747,6 +748,17 @@ async function convertMermaidToSvg(mermaidCode) {
         const svgContent = await page.evaluate(() => {
             // @ts-ignore
             const svg = document.querySelector('.mermaid svg');
+            if (!svg)
+                return null;
+            // Create a background rect
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("width", "100%");
+            rect.setAttribute("height", "100%");
+            rect.setAttribute("fill", "#121212"); // 👈 dark background
+            rect.setAttribute("x", "0");
+            rect.setAttribute("y", "0");
+            // Insert as the first child
+            svg.insertBefore(rect, svg.firstChild);
             return svg ? svg.outerHTML : null;
         });
         await browser.close();
