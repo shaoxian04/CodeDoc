@@ -56,6 +56,12 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     case 'saveDiagramToDocs':
                         this._handleSaveDiagramToDocs(message.diagramData);
                         break;
+                    case 'exportDiagramAsImage':
+                        this._handleDiagramExportAsImage(message.diagramData);
+                        break;
+                    case 'openDiagramAsImage':
+                        this._handleDiagramOpenAsImage(message.diagramData);
+                        break;
                 }
             }
         );
@@ -416,6 +422,16 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
     private _handleSaveDiagramToDocs(diagramData: any) {
         vscode.commands.executeCommand('codedoc.saveDiagramToDocs', diagramData);
+    }
+
+    private _handleDiagramExportAsImage(diagramData: any) {
+        console.log('Handling exportDiagramAsImage message with data:', diagramData);
+        vscode.commands.executeCommand('codedoc.exportDiagramAsImage', diagramData);
+    }
+
+    private _handleDiagramOpenAsImage(diagramData: any) {
+        console.log('Handling openDiagramAsImage message with data:', diagramData);
+        vscode.commands.executeCommand('codedoc.openDiagramAsImage', diagramData);
     }
 
     // public showGeneratedDiagram(diagramData: any) {
@@ -1317,6 +1333,8 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                             <h4 id="diagramTitle">Generated Diagram</h4>
                             <div class="diagram-actions">
                                 <button id="previewInVSCodeBtn" class="visualize-btn small">👁 Preview in VS Code</button>
+                                <button id="exportAsImageBtn" class="visualize-btn small">🖼️ Export as Image</button>
+                                <button id="openAsImageBtn" class="visualize-btn small">🖼️ Open as Image</button>
                                 <button id="saveToDocs" class="visualize-btn small">📁 Save to docs/</button>
                             </div>
                         </div>
@@ -1793,6 +1811,12 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                             break;
                         case 'refreshing':
                             break;
+                        case 'exportDiagramAsImage':
+                            this._handleDiagramExportAsImage(message.diagramData);
+                            break;
+                        case 'openDiagramAsImage':
+                            this._handleDiagramOpenAsImage(message.diagramData);
+                            break;
                     }
     });
 
@@ -1826,6 +1850,8 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     const copyBtn = document.getElementById('copyDiagramBtn');
                     const previewBtn = document.getElementById('previewInVSCodeBtn');
                     const saveBtn = document.getElementById('saveToDocs');
+                    const exportAsImageBtn = document.getElementById('exportAsImageBtn');
+                    const openAsImageBtn = document.getElementById('openAsImageBtn');
                     
                     // Handle scope change
                     // scopeRadios.forEach(radio => {
@@ -1846,6 +1872,8 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     exportBtn.addEventListener('click', exportDiagram);
                     copyBtn.addEventListener('click', copyDiagram);
                     previewBtn.addEventListener('click', previewInVSCode);
+                    exportAsImageBtn.addEventListener('click', exportDiagramAsImage);
+                    openAsImageBtn.addEventListener('click', openDiagramAsImage);
                     
                     // Test button
                     //document.getElementById('testMermaidBtn').addEventListener('click', testMermaidManually);
@@ -1960,23 +1988,24 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     loadingDiv.style.display = 'none';
 
                     // Store diagram data
+                    console.log('Setting currentDiagramData:', diagramData);
                     currentDiagramData = diagramData;
 
                     // Update title
                     titleElement.textContent = diagramData.title || 'Generated Diagram';
 
-                    // // Only call marked() if content is Markdown, not HTML
-                    // let htmlContent;
-                    // const isHtml = diagramData.content && (
-                    //     diagramData.content.startsWith('<') ||
-                    //     diagramData.content.includes('<h1') ||
-                    //     diagramData.content.includes('<div')
-                    // );
-                    // if (isHtml) {
-                    //     htmlContent = diagramData.content;
-                    // } else {
-                    //     htmlContent = window.marked(diagramData.content);
-                    // }
+                    // Only call marked() if content is Markdown, not HTML
+                    let htmlContent;
+                    const isHtml = diagramData.content && (
+                        diagramData.content.startsWith('<') ||
+                        diagramData.content.includes('<h1') ||
+                        diagramData.content.includes('<div')
+                    );
+                    if (isHtml) {
+                        htmlContent = diagramData.content;
+                    } else {
+                        htmlContent = window.marked(diagramData.content);
+                    }
                     contentDiv.innerHTML = htmlContent;
 
                     // Process Mermaid diagrams after a short delay
@@ -2005,6 +2034,33 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         });
                     }
                 }
+                
+                function exportDiagramAsImage() {
+                    console.log('exportDiagramAsImage button clicked');
+                    if (currentDiagramData) {
+                        console.log('Sending exportDiagramAsImage message with data:', currentDiagramData);
+                        vscode.postMessage({
+                            type: 'exportDiagramAsImage',
+                            diagramData: currentDiagramData
+                        });
+                    } else {
+                        console.log('No currentDiagramData available for export');
+                    }
+                }
+                
+                function openDiagramAsImage() {
+                    console.log('openDiagramAsImage button clicked');
+                    if (currentDiagramData) {
+                        console.log('Sending openDiagramAsImage message with data:', currentDiagramData);
+                        vscode.postMessage({
+                            type: 'openDiagramAsImage',
+                            diagramData: currentDiagramData
+                        });
+                    } else {
+                        console.log('No currentDiagramData available for opening');
+                    }
+                }
+                
                 function copyDiagram() {
                     console.log('copyDiagram called, currentDiagramData:', currentDiagramData);
                     if (currentDiagramData && currentDiagramData.rawContent) {

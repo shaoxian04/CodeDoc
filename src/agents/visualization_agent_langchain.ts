@@ -561,41 +561,162 @@ classDiagram
     // const scopeText = scope === 'module' ? ` (${module})` : '';
     const title = `Component Diagram`;
     
-    // Group classes by Spring patterns
+    console.log('Generating component diagram for classes:', classes.length);
+    
+    // Group classes by Spring patterns with fallback to naming conventions
     const controllers = classes.filter(cls => 
-      cls.springPatterns?.some((p: any) => p.type === 'CONTROLLER' || p.type === 'REST_CONTROLLER')
+      cls.springPatterns?.some((p: any) => p.type === 'CONTROLLER' || p.type === 'REST_CONTROLLER') ||
+      cls.name.toLowerCase().includes('controller')
     );
+    
     const services = classes.filter(cls => 
-      cls.springPatterns?.some((p: any) => p.type === 'SERVICE')
+      cls.springPatterns?.some((p: any) => p.type === 'SERVICE') ||
+      cls.name.toLowerCase().includes('service')
     );
+    
     const repositories = classes.filter(cls => 
-      cls.springPatterns?.some((p: any) => p.type === 'REPOSITORY')
+      cls.springPatterns?.some((p: any) => p.type === 'REPOSITORY') ||
+      cls.name.toLowerCase().includes('repository') ||
+      cls.name.toLowerCase().includes('dao')
     );
+    
+    console.log('Found components:', {
+      controllers: controllers.length,
+      services: services.length,
+      repositories: repositories.length
+    });
 
-    let mermaidContent = '```mermaid\ngraph TD\n';
+    let mermaidContent = '```mermaid\ngraph TD\n    classDef blackBackground fill:#000,color:#fff\n';
+    
+    // If no components found, create a simple diagram with all classes
+    if (controllers.length === 0 && services.length === 0 && repositories.length === 0) {
+      console.log('No Spring components found, creating generic component diagram');
+      
+      // Use naming conventions as fallback
+      const fallbackControllers = classes.filter(cls => cls.name.toLowerCase().includes('controller'));
+      const fallbackServices = classes.filter(cls => cls.name.toLowerCase().includes('service'));
+      const fallbackRepositories = classes.filter(cls => 
+        cls.name.toLowerCase().includes('repository') || 
+        cls.name.toLowerCase().includes('dao')
+      );
+      
+      // Add all classes as generic components if still no matches
+      if (fallbackControllers.length === 0 && fallbackServices.length === 0 && fallbackRepositories.length === 0) {
+        classes.slice(0, 10).forEach((cls, i) => {
+          mermaidContent += `    C${i}[${cls.name}]\n`;
+          mermaidContent += `    class C${i} blackBackground\n`;
+        });
+      } else {
+        // Add fallback components
+        fallbackControllers.forEach((cls, i) => {
+          mermaidContent += `    CTRL${i}[${cls.name}]\n`;
+          mermaidContent += `    class CTRL${i} blackBackground\n`;
+        });
+        
+        fallbackServices.forEach((cls, i) => {
+          mermaidContent += `    SVC${i}[${cls.name}]\n`;
+          mermaidContent += `    class SVC${i} blackBackground\n`;
+        });
+        
+        fallbackRepositories.forEach((cls, i) => {
+          mermaidContent += `    REPO${i}[${cls.name}]\n`;
+          mermaidContent += `    class REPO${i} blackBackground\n`;
+        });
+      }
+      
+      mermaidContent += '```';
+      
+      const stats = `${fallbackControllers.length} Controllers, ${fallbackServices.length} Services, ${fallbackRepositories.length} Repositories`;
+      
+      return {
+        title,
+        content: `# ${title}\n\n${mermaidContent}`,
+        stats
+      };
+    }
+    
+    // Create maps for easier lookup
+    const classMap = new Map<string, any>();
+    classes.forEach(cls => {
+      classMap.set(cls.name, cls);
+      // Also map simplified names
+      const simpleName = cls.name.split('.').pop() || cls.name;
+      classMap.set(simpleName, cls);
+    });
     
     // Add controllers
     controllers.forEach((ctrl, i) => {
       mermaidContent += `    C${i}[${ctrl.name}]\n`;
+      mermaidContent += `    class C${i} blackBackground\n`;
     });
     
     // Add services
     services.forEach((svc, i) => {
       mermaidContent += `    S${i}[${svc.name}]\n`;
+      mermaidContent += `    class S${i} blackBackground\n`;
     });
     
     // Add repositories
     repositories.forEach((repo, i) => {
       mermaidContent += `    R${i}[${repo.name}]\n`;
+      mermaidContent += `    class R${i} blackBackground\n`;
     });
     
-    // Add relationships
-    if (controllers.length > 0 && services.length > 0) {
-      mermaidContent += `    C0 --> S0\n`;
-    }
-    if (services.length > 0 && repositories.length > 0) {
-      mermaidContent += `    S0 --> R0\n`;
-    }
+    // Add more detailed relationships based on actual dependencies
+    // Controller --> Service relationships
+    controllers.forEach((ctrl, i) => {
+      if (ctrl.dependencies) {
+        ctrl.dependencies.forEach((dep: any) => {
+          // Find matching service
+          services.forEach((svc, j) => {
+            // Check if this dependency matches the service
+            const depStr = String(dep);
+            if (depStr.includes(svc.name) || 
+                svc.name.includes(depStr) || 
+                svc.name.toLowerCase().includes(ctrl.name.toLowerCase().replace('controller', '')) ||
+                ctrl.name.toLowerCase().replace('controller', '').includes(svc.name.toLowerCase().replace('service', ''))) {
+              mermaidContent += `    C${i} -->|uses| S${j}\n`;
+            }
+          });
+        });
+      }
+    });
+    
+    // Service --> Repository relationships
+    services.forEach((svc, i) => {
+      if (svc.dependencies) {
+        svc.dependencies.forEach((dep: any) => {
+          // Find matching repository
+          repositories.forEach((repo, j) => {
+            // Check if this dependency matches the repository
+            const depStr = String(dep);
+            if (depStr.includes(repo.name) || 
+                repo.name.includes(depStr) || 
+                repo.name.toLowerCase().includes(svc.name.toLowerCase().replace('service', '')) ||
+                svc.name.toLowerCase().replace('service', '').includes(repo.name.toLowerCase().replace('repository', '').replace('dao', ''))) {
+              mermaidContent += `    S${i} -->|uses| R${j}\n`;
+            }
+          });
+        });
+      }
+    });
+    
+    // Add relationships between services if they depend on each other
+    services.forEach((svc1, i) => {
+      if (svc1.dependencies) {
+        svc1.dependencies.forEach((dep: any) => {
+          services.forEach((svc2, j) => {
+            if (i !== j) {
+              const depStr = String(dep);
+              if (depStr.includes(svc2.name) || 
+                  svc2.name.includes(depStr)) {
+                mermaidContent += `    S${i} -->|uses| S${j}\n`;
+              }
+            }
+          });
+        });
+      }
+    });
     
     mermaidContent += '```';
     
@@ -612,15 +733,18 @@ classDiagram
     // const scopeText = scope === 'module' ? ` (${module})` : '';
     const title = `Layered Architecture`;
     
-    let mermaidContent = '```mermaid\ngraph TB\n';
+    let mermaidContent = '```mermaid\ngraph TB\n    classDef blackBackground fill:#000,color:#fff\n';
     mermaidContent += '    subgraph "Presentation Layer"\n';
     mermaidContent += '        Controllers[Controllers]\n';
+    mermaidContent += '        class Controllers blackBackground\n';
     mermaidContent += '    end\n';
     mermaidContent += '    subgraph "Business Layer"\n';
     mermaidContent += '        Services[Services]\n';
+    mermaidContent += '        class Services blackBackground\n';
     mermaidContent += '    end\n';
     mermaidContent += '    subgraph "Data Layer"\n';
     mermaidContent += '        Repositories[Repositories]\n';
+    mermaidContent += '        class Repositories blackBackground\n';
     mermaidContent += '    end\n';
     mermaidContent += '    Controllers --> Services\n';
     mermaidContent += '    Services --> Repositories\n';
@@ -639,13 +763,13 @@ classDiagram
     //const scopeText = scope === 'module' ? ` (${module})` : '';
     const title = `Class Diagram`;
   
-    // Start a mermaid fenced code block (markdown)
-    let mermaidContent = '```mermaid\nclassDiagram\n';
+    // Start a mermaid fenced code block (```)
+    let mermaidContent = '```mermaid\nclassDiagram\n    classDef blackBackground fill:#000,color:#fff\n';
   
-    // Deduplicate by class name, keep first occurrence; limit to 8
+    // Deduplicate by class name, keep first occurrence; limit to 15 for better visibility
     const uniqueClasses = classes.filter((cls, index, self) =>
       index === self.findIndex(c => c.name === cls.name)
-    ).slice(0, 8);
+    ).slice(0, 15);
   
     // Helper: sanitize identifier for mermaid (only word chars and underscores)
     const makeSanitizedIdGenerator = () => {
@@ -721,19 +845,19 @@ classDiagram
       // Keep original name as a comment (mermaid supports %% comments)
       mermaidContent += `        %% ${cls.name}\n`;
   
-      // Add up to 2 key fields (simplified types)
-      const keyFields = (cls.fields || []).slice(0, 2);
+      // Add up to 3 key fields (simplified types)
+      const keyFields = (cls.fields || []).slice(0, 3);
       keyFields.forEach((field: any) => {
         const fname = String(field.name || 'field').replace(/[{}]/g, '');
         const ftype = simplifyType(field.type);
         mermaidContent += `        -${fname}: ${ftype}\n`;
       });
   
-      // Add up to 3 key methods, prefer non-getter/setter
+      // Add up to 5 key methods, prefer non-getter/setter
       const allMethods = cls.methods || [];
-      const keyMethods = allMethods.filter((m: any) => !String(m.name).startsWith('get') && !String(m.name).startsWith('set')).slice(0, 3);
+      const keyMethods = allMethods.filter((m: any) => !String(m.name).startsWith('get') && !String(m.name).startsWith('set')).slice(0, 5);
       if (keyMethods.length === 0) {
-        keyMethods.push(...allMethods.slice(0, 2));
+        keyMethods.push(...allMethods.slice(0, 3));
       }
       keyMethods.forEach((method: any) => {
         const ret = method.returnType && method.returnType !== 'void' ? `: ${simplifyType(method.returnType)}` : '';
@@ -746,6 +870,104 @@ classDiagram
   
     // Build relationships (use sanitized ids)
     const addedRelationships = new Set<string>();
+  
+    // Enhanced dependency detection
+    uniqueClasses.forEach(cls => {
+      const classId = idMap.get(cls.name);
+      if (cls.dependencies && classId) {
+        cls.dependencies.forEach((dep: any) => {
+          // Find the dependent class in our uniqueClasses
+          const depClass = uniqueClasses.find(c => 
+            c.name === dep || 
+            c.name === dep.replace(/.*\./g, '') || // Remove package prefix
+            dep.includes(c.name) ||
+            // Handle inner classes
+            (c.name.includes('$') && dep.includes(c.name.split('$')[0]))
+          );
+          
+          if (depClass) {
+            const depId = idMap.get(depClass.name);
+            if (depId && depId !== classId) { // Avoid self-references
+              const rel = `${classId} --> ${depId}`;
+              if (!addedRelationships.has(rel)) {
+                mermaidContent += `    ${rel} : depends on\n`;
+                addedRelationships.add(rel);
+              }
+            }
+          }
+        });
+      }
+      
+      // Add field-based dependencies
+      if (cls.fields && classId) {
+        cls.fields.forEach((field: any) => {
+          const fieldType = simplifyType(field.type);
+          // Look for classes that match this field type
+          const fieldClass = uniqueClasses.find(c => 
+            c.name === fieldType ||
+            c.name.endsWith(fieldType)
+          );
+          
+          if (fieldClass) {
+            const fieldId = idMap.get(fieldClass.name);
+            if (fieldId && fieldId !== classId) { // Avoid self-references
+              const rel = `${classId} --> ${fieldId}`;
+              if (!addedRelationships.has(rel)) {
+                mermaidContent += `    ${rel} : has\n`;
+                addedRelationships.add(rel);
+              }
+            }
+          }
+        });
+      }
+      
+      // Add method parameter-based dependencies
+      if (cls.methods && classId) {
+        cls.methods.forEach((method: any) => {
+          if (method.parameters) {
+            method.parameters.forEach((param: any) => {
+              const paramType = simplifyType(param.type);
+              // Look for classes that match this parameter type
+              const paramClass = uniqueClasses.find(c => 
+                c.name === paramType ||
+                c.name.endsWith(paramType)
+              );
+              
+              if (paramClass) {
+                const paramId = idMap.get(paramClass.name);
+                if (paramId && paramId !== classId) { // Avoid self-references
+                  const rel = `${classId} ..> ${paramId}`;
+                  if (!addedRelationships.has(rel)) {
+                    mermaidContent += `    ${rel} : uses\n`;
+                    addedRelationships.add(rel);
+                  }
+                }
+              }
+            });
+          }
+          
+          // Add return type dependencies
+          if (method.returnType) {
+            const returnType = simplifyType(method.returnType);
+            const returnClass = uniqueClasses.find(c => 
+              c.name === returnType ||
+              c.name.endsWith(returnType)
+            );
+            
+            if (returnClass) {
+              const returnId = idMap.get(returnClass.name);
+              if (returnId && returnId !== classId) { // Avoid self-references
+                const rel = `${classId} ..> ${returnId}`;
+                if (!addedRelationships.has(rel)) {
+                  mermaidContent += `    ${rel} : returns\n`;
+                  addedRelationships.add(rel);
+                }
+              }
+            }
+          }
+        });
+      }
+    });
   
     // Controller --> Service
     controllers.forEach(controller => {
@@ -795,6 +1017,12 @@ classDiagram
       }
     }
   
+    // Apply black background to all classes
+    uniqueClasses.forEach(cls => {
+      const id = idMap.get(cls.name)!;
+      mermaidContent += `    class ${id} blackBackground\n`;
+    });
+  
     mermaidContent += '```';
   
     const stats = `${uniqueClasses.length} classes shown (${classes.length} total)`;
@@ -813,23 +1041,103 @@ classDiagram
     // Group classes by package
     const packages = [...new Set(classes.map(cls => cls.package).filter(pkg => pkg))];
     
-    let mermaidContent = '```mermaid\ngraph LR\n';
-    
-    packages.forEach((pkg, i) => {
-      const safePkgName = pkg.replace(/\./g, '_');
-      mermaidContent += `    ${safePkgName}[${pkg}]\n`;
+    // Create a map of package names to their safe identifiers
+    const packageIdMap = new Map<string, string>();
+    packages.forEach(pkg => {
+      const safeId = pkg.replace(/\./g, '_');
+      packageIdMap.set(pkg, safeId);
     });
     
-    // Add some basic relationships (simplified)
-    if (packages.length > 1) {
-      const pkg1 = packages[0].replace(/\./g, '_');
-      const pkg2 = packages[1].replace(/\./g, '_');
-      mermaidContent += `    ${pkg1} --> ${pkg2}\n`;
-    }
+    let mermaidContent = '```mermaid\ngraph LR\n    classDef blackBackground fill:#000,color:#fff\n';
+    
+    // Add all packages as nodes
+    packages.forEach(pkg => {
+      const safeId = packageIdMap.get(pkg)!;
+      mermaidContent += `    ${safeId}["${pkg}"]\n`;
+      mermaidContent += `    class ${safeId} blackBackground\n`;
+    });
+    
+    // Create a map of class names to their packages for quick lookup
+    const classToPackageMap = new Map<string, string>();
+    classes.forEach(cls => {
+      if (cls.package) {
+        classToPackageMap.set(cls.name, cls.package);
+        // Also map simplified class names (without package)
+        const simpleName = cls.name.split('.').pop() || cls.name;
+        classToPackageMap.set(simpleName, cls.package);
+      }
+    });
+    
+    // Analyze dependencies between packages
+    const packageDependencies = new Set<string>();
+    const dependencyCounts = new Map<string, number>();
+    
+    classes.forEach(cls => {
+      if (cls.dependencies && cls.package) {
+        const sourcePackage = cls.package;
+        const sourcePackageId = packageIdMap.get(sourcePackage);
+        
+        if (sourcePackageId) {
+          cls.dependencies.forEach((dep: any) => {
+            // Try to find which package this dependency belongs to
+            let targetPackage: string | null = null;
+            
+            // Direct match with full class name
+            if (classToPackageMap.has(dep)) {
+              targetPackage = classToPackageMap.get(dep) || null;
+            } 
+            // Try with simplified name
+            else {
+              const depStr = String(dep);
+              const depParts = depStr.split('.');
+              const simpleDepName = depParts[depParts.length - 1];
+              if (classToPackageMap.has(simpleDepName)) {
+                targetPackage = classToPackageMap.get(simpleDepName) || null;
+              }
+              // Try with the last part of the dependency if it contains $
+              else if (depStr.includes('$')) {
+                const innerClassParts = depStr.split('$');
+                const outerClass = innerClassParts[0];
+                const outerClassName = outerClass.split('.').pop() || outerClass;
+                if (classToPackageMap.has(outerClassName)) {
+                  targetPackage = classToPackageMap.get(outerClassName) || null;
+                }
+              }
+            }
+            
+            // If we found the target package and it's different from source
+            if (targetPackage && targetPackage !== sourcePackage) {
+              const targetPackageId = packageIdMap.get(targetPackage);
+              if (targetPackageId) {
+                const relationshipKey = `${sourcePackageId}->${targetPackageId}`;
+                const relationship = `${sourcePackageId} -->|depends on| ${targetPackageId}`;
+                if (!packageDependencies.has(relationshipKey)) {
+                  packageDependencies.add(relationshipKey);
+                  packageDependencies.add(relationship);
+                  dependencyCounts.set(relationshipKey, 1);
+                } else {
+                  // Increment count for this relationship
+                  const currentCount = dependencyCounts.get(relationshipKey) || 1;
+                  dependencyCounts.set(relationshipKey, currentCount + 1);
+                }
+              }
+            }
+          });
+        }
+      }
+    });
+    
+    // Add the discovered package dependencies
+    packageDependencies.forEach(rel => {
+      // Only add the actual relationship lines, not the keys
+      if (rel.includes('-->') && !rel.includes('->')) {
+        mermaidContent += `    ${rel}\n`;
+      }
+    });
     
     mermaidContent += '```';
     
-    const stats = `${packages.length} packages`;
+    const stats = `${packages.length} packages, ${dependencyCounts.size} dependencies`;
     
     return {
       title,
@@ -842,7 +1150,7 @@ classDiagram
   //   const scopeText = scope === 'module' ? ` (${module})` : '';
   //   const title = `Sequence Diagram${scopeText}`;
     
-  //   let mermaidContent = '```mermaid\nsequenceDiagram\n';
+  //   let mermaidContent = '``mermaid\nsequenceDiagram\n';
   //   mermaidContent += '    participant Client\n';
   //   mermaidContent += '    participant Controller\n';
   //   mermaidContent += '    participant Service\n';

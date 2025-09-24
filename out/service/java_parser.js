@@ -285,18 +285,79 @@ class JavaParser {
     }
     extractDependencies(content, imports) {
         const dependencies = [];
+        // 1. Extract Spring annotations
         const springAnnotations = ['@Autowired', '@Inject', '@Resource', '@Service', '@Repository', '@Component', '@Controller', '@RestController'];
         for (const annotation of springAnnotations) {
             if (content.includes(annotation)) {
                 dependencies.push(annotation.substring(1));
             }
         }
+        // 2. Extract field injection types
         const fieldInjectionRegex = /@(?:Autowired|Inject|Resource)\s*(?:private|public|protected)?\s+(\w+)/g;
         let match;
         while ((match = fieldInjectionRegex.exec(content)) !== null) {
             dependencies.push(match[1]);
         }
+        // 3. Extract field types (potential dependencies)
+        const fieldRegex = /(?:private|public|protected)?\s+(\w+(?:<[^>]+>)?)\s+\w+\s*;/g;
+        while ((match = fieldRegex.exec(content)) !== null) {
+            const fieldType = match[1];
+            // Only add non-primitive types
+            if (!this.isPrimitiveType(fieldType)) {
+                // Remove generics if present
+                const simpleType = fieldType.replace(/<.*>/, '');
+                dependencies.push(simpleType);
+            }
+        }
+        // 4. Extract method parameter types
+        const methodParamRegex = /\w+\s*\([^)]*\)\s*\{/g;
+        const methodMatches = content.match(methodParamRegex) || [];
+        for (const methodSignature of methodMatches) {
+            // Extract parameters from method signature
+            const paramMatch = methodSignature.match(/\(([^)]*)\)/);
+            if (paramMatch && paramMatch[1]) {
+                const params = paramMatch[1].split(',');
+                for (const param of params) {
+                    const paramParts = param.trim().split(/\s+/);
+                    if (paramParts.length >= 2) {
+                        const paramType = paramParts[paramParts.length - 2];
+                        if (!this.isPrimitiveType(paramType)) {
+                            // Remove generics if present
+                            const simpleType = paramType.replace(/<.*>/, '');
+                            dependencies.push(simpleType);
+                        }
+                    }
+                }
+            }
+        }
+        // 5. Extract method return types
+        const methodReturnRegex = /(?:public|private|protected)?\s+(\w+(?:<[^>]+>)?)\s+\w+\s*\([^)]*\)\s*\{/g;
+        while ((match = methodReturnRegex.exec(content)) !== null) {
+            const returnType = match[1];
+            // Only add non-primitive types and not void
+            if (returnType !== 'void' && !this.isPrimitiveType(returnType)) {
+                // Remove generics if present
+                const simpleType = returnType.replace(/<.*>/, '');
+                dependencies.push(simpleType);
+            }
+        }
+        // 6. Extract types from imports (for fully qualified names)
+        for (const imp of imports) {
+            // Skip static imports and wildcards
+            if (!imp.startsWith('static') && !imp.endsWith('*')) {
+                const parts = imp.split('.');
+                const className = parts[parts.length - 1];
+                dependencies.push(className);
+                // Also add the full import for matching
+                dependencies.push(imp);
+            }
+        }
         return [...new Set(dependencies)];
+    }
+    isPrimitiveType(type) {
+        const primitives = ['boolean', 'byte', 'char', 'short', 'int', 'long', 'float', 'double', 'void'];
+        const wrappers = ['Boolean', 'Byte', 'Character', 'Short', 'Integer', 'Long', 'Float', 'Double', 'Void'];
+        return primitives.includes(type) || wrappers.includes(type);
     }
     extractRelationships(classes) {
         const relationships = [];

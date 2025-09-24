@@ -348,6 +348,118 @@ function activate(context) {
             vscode.window.showErrorMessage("Failed to save diagram to docs folder");
         }
     }));
+    // Add image export command
+    context.subscriptions.push(vscode.commands.registerCommand("codedoc.exportDiagramAsImage", async (diagramData) => {
+        console.log("codedoc.exportDiagramAsImage command executed");
+        console.log("Received diagramData for export:", diagramData);
+        // Check if we have the required data
+        if (!diagramData) {
+            console.log("No diagramData provided for export");
+            vscode.window.showErrorMessage("No diagram data available for export");
+            return;
+        }
+        try {
+            // Check if diagramData has the required content
+            if (!diagramData || !diagramData.rawContent) {
+                vscode.window.showErrorMessage("No diagram content available to export as image");
+                return;
+            }
+            // Extract the mermaid content from the rawContent
+            let mermaidContent = diagramData.rawContent;
+            const mermaidMatch = diagramData.rawContent.match(/```mermaid([\s\S]*?)```/);
+            if (mermaidMatch) {
+                mermaidContent = mermaidMatch[1].trim();
+            }
+            // Create SVG from mermaid using mermaid CLI approach
+            const svgContent = await convertMermaidToSvg(mermaidContent);
+            if (!svgContent) {
+                vscode.window.showErrorMessage("Failed to convert diagram to image");
+                return;
+            }
+            const fileName = `${diagramData.type || 'diagram'}-${Date.now()}.svg`;
+            const uri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(fileName),
+                filters: {
+                    'SVG files': ['svg'],
+                    'PNG files': ['png']
+                }
+            });
+            if (uri) {
+                // For PNG conversion, we would need additional processing
+                if (uri.path.endsWith('.png')) {
+                    vscode.window.showErrorMessage("PNG export not yet implemented. Please export as SVG for now.");
+                    return;
+                }
+                await vscode.workspace.fs.writeFile(uri, Buffer.from(svgContent, 'utf8'));
+                vscode.window.showInformationMessage(`Diagram exported as image to ${uri.fsPath}`);
+            }
+        }
+        catch (error) {
+            console.error("Error exporting diagram as image:", error);
+            vscode.window.showErrorMessage(`Failed to export diagram as image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }));
+    // Add open as image command
+    context.subscriptions.push(vscode.commands.registerCommand("codedoc.openDiagramAsImage", async (diagramData) => {
+        console.log("codedoc.openDiagramAsImage command executed");
+        console.log("Received diagramData for opening:", diagramData);
+        // Check if we have the required data
+        if (!diagramData) {
+            console.log("No diagramData provided for opening");
+            vscode.window.showErrorMessage("No diagram data available for opening");
+            return;
+        }
+        try {
+            // Check if diagramData has the required content
+            if (!diagramData || !diagramData.rawContent) {
+                vscode.window.showErrorMessage("No diagram content available to open as image");
+                return;
+            }
+            // Extract the mermaid content from the rawContent
+            let mermaidContent = diagramData.rawContent;
+            const mermaidMatch = diagramData.rawContent.match(/```mermaid([\s\S]*?)```/);
+            if (mermaidMatch) {
+                mermaidContent = mermaidMatch[1].trim();
+            }
+            // Create SVG from mermaid
+            const svgContent = await convertMermaidToSvg(mermaidContent);
+            if (!svgContent) {
+                vscode.window.showErrorMessage("Failed to convert diagram to image");
+                return;
+            }
+            // Create temp file
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            const fileName = `temp-diagram-${Date.now()}.svg`;
+            let tempUri;
+            if (workspaceFolder) {
+                tempUri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
+            }
+            else {
+                // Fallback to system temp directory
+                const os = require('os');
+                const path = require('path');
+                tempUri = vscode.Uri.file(path.join(os.tmpdir(), fileName));
+            }
+            await vscode.workspace.fs.writeFile(tempUri, Buffer.from(svgContent, 'utf8'));
+            // Use the preview command to open the SVG as an image instead of text
+            await vscode.commands.executeCommand('vscode.open', tempUri, { preview: true });
+            vscode.window.showInformationMessage("Diagram opened as SVG image in preview.");
+            // Clean up temp file after a delay
+            setTimeout(async () => {
+                try {
+                    await vscode.workspace.fs.delete(tempUri);
+                }
+                catch (e) {
+                    // Ignore cleanup errors
+                    console.log("Could not clean up temp file:", e);
+                }
+            }, 60000); // 60 seconds
+        }
+        catch (error) {
+            console.error("Error opening diagram as image:", error);
+            vscode.window.showErrorMessage(`Failed to open diagram as image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }));
     // Add chat message processing command
     context.subscriptions.push(vscode.commands.registerCommand("codedoc.processChatMessage", async (message) => {
         console.log("codedoc.processChatMessage command executed with message:", message);
@@ -571,5 +683,87 @@ async function configureTemperature() {
         return true;
     }
     return false;
+}
+// Helper function to convert Mermaid to SVG
+async function convertMermaidToSvg(mermaidCode) {
+    try {
+        // Import puppeteer dynamically to avoid issues if not installed
+        let puppeteer;
+        try {
+            puppeteer = await Promise.resolve().then(() => __importStar(require('puppeteer')));
+        }
+        catch (error) {
+            console.warn('Puppeteer not available, using placeholder SVG');
+            // Return a placeholder SVG with instructions
+            const svgTemplate = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="800" height="600">
+  <rect x="0" y="0" width="800" height="600" fill="#1e1e1e" />
+  <text x="400" y="250" font-family="Arial" font-size="24" fill="white" text-anchor="middle">Mermaid Diagram</text>
+  <text x="400" y="290" font-family="Arial" font-size="18" fill="white" text-anchor="middle">Export as Image Feature</text>
+  <text x="400" y="330" font-family="Arial" font-size="16" fill="lightblue" text-anchor="middle">Puppeteer is installed but not working properly</text>
+  <text x="400" y="360" font-family="Arial" font-size="14" fill="white" text-anchor="middle">Please check your Puppeteer installation</text>
+</svg>`;
+            return svgTemplate;
+        }
+        // Create a complete HTML document with Mermaid
+        const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+        <style>
+          body { margin: 0; padding: 20px; background: #1e1e1e; }
+          .mermaid { text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="mermaid">${mermaidCode}</div>
+        <script>
+          mermaid.initialize({ 
+            startOnLoad: true, 
+            theme: 'dark',
+            themeVariables: {
+              darkMode: true,
+              primaryColor: '#bb86fc',
+              primaryTextColor: '#ffffff',
+              primaryBorderColor: '#bb86fc',
+              lineColor: '#ffffff',
+              secondaryColor: '#03dac6',
+              tertiaryColor: '#cf6679'
+            }
+          });
+        </script>
+      </body>
+      </html>
+    `;
+        // Launch browser and convert to SVG
+        const browser = await puppeteer.launch({ headless: 'new' });
+        const page = await browser.newPage();
+        // Set content and wait for mermaid to render
+        await page.setContent(htmlContent);
+        await page.waitForSelector('.mermaid svg');
+        // Get the SVG element
+        const svgContent = await page.evaluate(() => {
+            // @ts-ignore
+            const svg = document.querySelector('.mermaid svg');
+            return svg ? svg.outerHTML : null;
+        });
+        await browser.close();
+        return svgContent;
+    }
+    catch (error) {
+        console.error("Error converting Mermaid to SVG:", error);
+        // Return a fallback SVG
+        const svgTemplate = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="800" height="600">
+  <rect x="0" y="0" width="800" height="600" fill="#1e1e1e" />
+  <text x="400" y="250" font-family="Arial" font-size="24" fill="white" text-anchor="middle">Mermaid Diagram</text>
+  <text x="400" y="290" font-family="Arial" font-size="18" fill="white" text-anchor="middle">Export Error</text>
+  <text x="400" y="330" font-family="Arial" font-size="16" fill="lightblue" text-anchor="middle">${error instanceof Error ? error.message : 'Unknown error'}</text>
+</svg>`;
+        return svgTemplate;
+    }
 }
 //# sourceMappingURL=extension.js.map
