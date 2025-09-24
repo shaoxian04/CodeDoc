@@ -20,6 +20,7 @@ const vscode = acquireVsCodeApi();
             console.error('Mermaid library not found!');
         }
 
+        //switch tab
         function switchTab(tabName) {
             const tabs = ['overview', 'chat', 'explanation', 'visualization2'];
 
