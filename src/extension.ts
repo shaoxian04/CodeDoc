@@ -294,15 +294,42 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         try {
-          const doc = await vscode.workspace.openTextDocument({
-            content: content,
-            language: content.startsWith("#") ? "``" : undefined, // Use code block language if content is code
-          });
+          // Get the workspace folder to save the documentation
+          const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+          if (!workspaceFolder) {
+            vscode.window.showErrorMessage("No workspace folder found");
+            return;
+          }
 
-          await vscode.window.showTextDocument(doc);
+          // Create docs directory if it doesn't exist
+          const docsPath = vscode.Uri.joinPath(workspaceFolder.uri, 'docs');
+          try {
+            await vscode.workspace.fs.createDirectory(docsPath);
+          } catch (e) {
+            // Directory might already exist
+          }
+
+          // Create a filename with timestamp
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const fileName = `class-documentation-${timestamp}.md`;
+          const fileUri = vscode.Uri.joinPath(docsPath, fileName);
+
+          // Write the content to the file
+          await vscode.workspace.fs.writeFile(fileUri, Buffer.from(content, 'utf8'));
+          
           vscode.window.showInformationMessage(
-            "Class documentation exported successfully!"
+            `Class documentation saved to ${fileUri.fsPath}`
           );
+
+          // Optionally open the file after saving
+          const openFile = await vscode.window.showInformationMessage(
+            "Class documentation exported successfully!", 
+            "Open File"
+          );
+          if (openFile === "Open File") {
+            const doc = await vscode.workspace.openTextDocument(fileUri);
+            await vscode.window.showTextDocument(doc);
+          }
         } catch (error) {
           vscode.window.showErrorMessage(
             `Error exporting documentation: ${error}`
