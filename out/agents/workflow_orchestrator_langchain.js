@@ -262,6 +262,19 @@ class WorkflowOrchestrator {
     async coordinateAgents(task, payload) {
         return await this.mcpService.coordinateTask('WorkflowOrchestrator', task, payload);
     }
+    // Wrapper method to update markdown file
+    async updateMarkdownFile(structure, existing, relatedFiles = [], relPath) {
+        try {
+            const result = await this.documentationAgent['updateMarkdownFile'](structure, existing, relatedFiles, relPath);
+            return { success: true, data: result };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
+            };
+        }
+    }
 }
 exports.WorkflowOrchestrator = WorkflowOrchestrator;
 //# sourceMappingURL=workflow_orchestrator_langchain.js.map

@@ -201,8 +201,6 @@ class DocumentationAgent {
             throw new Error(`Failed to generate class documentation: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
-<<<<<<< Updated upstream
-=======
     // Update an existing markdown file to reflect the current codebase and related files
     async updateMarkdownFile(structure, existing, relatedFiles = [], relPath) {
         try {
@@ -245,7 +243,6 @@ class DocumentationAgent {
             throw new Error(`Failed to update markdown file: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
->>>>>>> Stashed changes
     createStructureSummary(structure) {
         let summary = `Total Classes: ${structure.classes.length}\n\n`;
         // Group classes by package

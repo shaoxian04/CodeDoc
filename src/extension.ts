@@ -4,6 +4,9 @@ import { JavaParser, ProjectStructure } from './service/java_parser';
 import { OpenAIService } from './service/openai_service';
 import { WorkflowOrchestrator } from './agents/workflow_orchestrator_langchain';
 
+import * as cp from 'child_process';
+import * as fs from 'fs';
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('CodeDoc extension is now active!');
     
@@ -81,8 +84,6 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-<<<<<<< Updated upstream
-=======
     // Command: sync documentation intelligently with workspace markdown
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.syncDocs', async (changedFiles?: string[]) => {
@@ -281,7 +282,7 @@ export function activate(context: vscode.ExtensionContext) {
                             return false;
                         }
 
-                        let lacksDesc = markdownLacksDescription(existing, tokens);
+                        const lacksDesc = markdownLacksDescription(existing, tokens);
 
                             // New heuristic: detect annotation mismatches generically (any @annotation)
                             function extractAnnotations(text: string) {
@@ -412,29 +413,8 @@ export function activate(context: vscode.ExtensionContext) {
                             continue;
                         }
 
-                        // If markdown contains paragraphs that are just a method name (or a backticked name),
-                        // ask the documentation agent to expand them with a short description and the source code.
-                        const paragraphs = existing.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-                        const identRe = /^`?([A-Za-z_][A-Za-z0-9_]*)`?$/;
-                        const identifierOnly: string[] = [];
-                        for (const p of paragraphs) {
-                            const m = p.match(identRe);
-                            if (m) identifierOnly.push(m[1]);
-                        }
-
-                        if (identifierOnly.length) {
-                            // Treat as lacking description so we force update flow
-                            lacksDesc = true;
-                        }
-
                         // Truncate existing content in prompt if extremely large
-                        let existingSnippet = existing.length > 3000 ? existing.slice(0, 3000) + '\n\n...[truncated]' : existing;
-
-                        // If identifier-only mentions exist, append a hint for the agent describing desired behavior
-                        if (identifierOnly.length) {
-                            const hint = `\n\n<!-- CODEDOC_HINT: For the following identifiers found as standalone paragraphs: ${identifierOnly.join(', ')}. Please add a concise (1-2 sentence) description for each and include the method's source code as a fenced code block (use the related code snippets provided). Only modify or augment these sections. -->`;
-                            existingSnippet += hint;
-                        }
+                        const existingSnippet = existing.length > 3000 ? existing.slice(0, 3000) + '\n\n...[truncated]' : existing;
                         const prompt = `You are given an existing markdown file (path: ${relPath}) and the current project structure context.\n\nExisting file content:\n---\n${existingSnippet}\n---\n\nReferenced code files (only include content when necessary):\n${referenced.join('\n')}\n\nPlease update this markdown so that it correctly documents the current codebase based on the referenced code. Only change sections that are inconsistent with the code; preserve formatting and headings where possible. Return the full, updated markdown content only.`;
                         // Build related file snippets to pass to the orchestrator
                         const relatedFilesForAgent = topFiles.map(f => ({ path: vscode.workspace.asRelativePath(f.uri), snippet: f.snippet }));
@@ -443,9 +423,7 @@ export function activate(context: vscode.ExtensionContext) {
                             console.warn('[codedoc.syncDocs] failed to update suggestion for', relPath, respForFile.error);
                             continue;
                         }
-                        let suggested = respForFile.data as string;
-                        // Sanitize agent output to remove accidental fenced triples
-                        suggested = sanitizeMarkdownOutput(suggested);
+                        const suggested = respForFile.data as string;
 
                         const sim = similarity(existing, suggested);
                         console.debug('[codedoc.syncDocs] file', relPath, 'similarity', sim);
@@ -458,7 +436,7 @@ export function activate(context: vscode.ExtensionContext) {
                             const ignore = 'Ignore';
                             const choice = await vscode.window.showInformationMessage(`${relPath} appears outdated relative to the code. Update this markdown?`, replace, preview, ignore);
                             if (choice === preview) {
-                                const doc = await vscode.workspace.openTextDocument({ content: sanitizeMarkdownOutput(suggested), language: 'markdown' });
+                                const doc = await vscode.workspace.openTextDocument({ content: suggested, language: 'markdown' });
                                 await vscode.window.showTextDocument(doc, { preview: false });
                                 // prompt again for replace
                                 const confirm = await vscode.window.showInformationMessage(`Replace ${relPath} with suggested content?`, `Replace ${relPath}`, 'Cancel');
@@ -497,7 +475,6 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
->>>>>>> Stashed changes
     context.subscriptions.push(
         vscode.commands.registerCommand('codedoc.visualizeCode', async () => {
             console.log('codedoc.visualizeCode command executed');
@@ -719,7 +696,16 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(watcher);
     
     console.log('CodeDoc extension activation completed');
+
+    // Start Git remote poller to notify about remote updates
+    try {
+        const gitPoller = startGitRemotePoller();
+        context.subscriptions.push({ dispose: () => gitPoller.stop() });
+    } catch (e) {
+        console.error('Failed to start git poller', e);
+    }
 }
+        
 
 export function deactivate() {
     console.log('CodeDoc extension is deactivated');
@@ -888,8 +874,6 @@ async function configureTemperature(): Promise<boolean> {
         return true;
     }
     return false;
-<<<<<<< Updated upstream
-=======
 }
 
 // --- Git helper functions and poller ---
@@ -978,33 +962,6 @@ function startGitRemotePoller() {
 
             // If remote head has advanced and local head now equals remote head, this is likely a pull
             if (remoteHead && remoteHead !== lastRemoteHead && localHead && localHead === remoteHead) {
-                // Sometimes remoteHead moves because *you* pushed from another clone. Check authors between lastRemoteHead..remoteHead
-                // and if all commits are authored by the local git user, treat it as a local push and skip prompting.
-                try {
-                    const rawRemoteCommits = await execGit(`log --format=%H|%an|%ae ${lastRemoteHead}..${remoteHead}`, cwd).catch(() => '');
-                    const remoteCommitLines = rawRemoteCommits ? rawRemoteCommits.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : [];
-                    const localName = (await execGit('config user.name', cwd).catch(() => '')).trim();
-                    const localEmail = (await execGit('config user.email', cwd).catch(() => '')).trim();
-                    let allLocalAuthored = true;
-                    for (const ln of remoteCommitLines) {
-                        const parts = ln.split('|');
-                        const authorName = parts[1] || '';
-                        const authorEmail = parts[2] || '';
-                        if (localEmail && authorEmail && authorEmail === localEmail) continue;
-                        if (localName && authorName && authorName === localName) continue;
-                        // if we can't match either, consider it non-local
-                        allLocalAuthored = false;
-                        break;
-                    }
-                    if (allLocalAuthored && remoteCommitLines.length) {
-                        console.debug('[gitPoller] remoteHead advanced but all commits authored by local user; skipping docs prompt');
-                        lastLocalHead = localHead;
-                        lastRemoteHead = remoteHead;
-                        return;
-                    }
-                } catch (e) {
-                    // ignore and continue to normal behavior
-                }
                 // Determine which files changed in the incoming commits
                 const changed = await execGit(`diff --name-only ${lastLocalHead} ${localHead}`, cwd).catch(() => '');
                 let files = changed ? changed.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : [];
@@ -1156,20 +1113,4 @@ function startGitRemotePoller() {
     return {
         stop: () => { stopped = true; clearInterval(timer); }
     };
-}
-
-// Sanitize markdown-like output from LLMs/agents by removing surrounding code fences
-function sanitizeMarkdownOutput(text: string) {
-    if (!text || typeof text !== 'string') return text;
-    let s = text.trim();
-    // If the entire content is wrapped in a single fenced block, remove the outer fences
-    const fullFence = s.match(/^```[^\n]*\n([\s\S]*)\n```$/);
-    if (fullFence && fullFence[1]) {
-        return fullFence[1].trim();
-    }
-    // Otherwise, strip a single leading fence and a single trailing fence if present
-    s = s.replace(/^```[^\n]*\n/, '');
-    s = s.replace(/\n```\s*$/, '');
-    return s.trim();
->>>>>>> Stashed changes
 }

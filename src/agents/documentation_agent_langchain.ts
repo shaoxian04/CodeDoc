@@ -199,8 +199,6 @@ export class DocumentationAgent implements Agent {
         }
     }
 
-<<<<<<< Updated upstream
-=======
     // Update an existing markdown file to reflect the current codebase and related files
     private async updateMarkdownFile(structure: ProjectStructure, existing: string, relatedFiles: Array<{path:string, snippet:string}> = [], relPath?: string): Promise<string> {
         try {
@@ -245,7 +243,6 @@ export class DocumentationAgent implements Agent {
         }
     }
 
->>>>>>> Stashed changes
     private createStructureSummary(structure: ProjectStructure): string {
         let summary = `Total Classes: ${structure.classes.length}\n\n`;
         

@@ -40,6 +40,8 @@ const main_provider_1 = require("./views/main_provider");
 const java_parser_1 = require("./service/java_parser");
 const openai_service_1 = require("./service/openai_service");
 const workflow_orchestrator_langchain_1 = require("./agents/workflow_orchestrator_langchain");
+const cp = __importStar(require("child_process"));
+const fs = __importStar(require("fs"));
 function activate(context) {
     console.log('CodeDoc extension is now active!');
     // Log activation for debugging
@@ -95,8 +97,6 @@ function activate(context) {
             }
         }
     }));
-<<<<<<< Updated upstream
-=======
     // Command: sync documentation intelligently with workspace markdown
     context.subscriptions.push(vscode.commands.registerCommand('codedoc.syncDocs', async (changedFiles) => {
         console.log('codedoc.syncDocs command executed', { changedFiles });
@@ -295,7 +295,7 @@ function activate(context) {
                         }
                         return false;
                     }
-                    let lacksDesc = markdownLacksDescription(existing, tokens);
+                    const lacksDesc = markdownLacksDescription(existing, tokens);
                     // New heuristic: detect annotation mismatches generically (any @annotation)
                     function extractAnnotations(text) {
                         const s = new Set();
@@ -426,27 +426,8 @@ function activate(context) {
                         console.debug('[codedoc.syncDocs] skipping', relPath, 'no newer code referenced and descriptions present');
                         continue;
                     }
-                    // If markdown contains paragraphs that are just a method name (or a backticked name),
-                    // ask the documentation agent to expand them with a short description and the source code.
-                    const paragraphs = existing.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-                    const identRe = /^`?([A-Za-z_][A-Za-z0-9_]*)`?$/;
-                    const identifierOnly = [];
-                    for (const p of paragraphs) {
-                        const m = p.match(identRe);
-                        if (m)
-                            identifierOnly.push(m[1]);
-                    }
-                    if (identifierOnly.length) {
-                        // Treat as lacking description so we force update flow
-                        lacksDesc = true;
-                    }
                     // Truncate existing content in prompt if extremely large
-                    let existingSnippet = existing.length > 3000 ? existing.slice(0, 3000) + '\n\n...[truncated]' : existing;
-                    // If identifier-only mentions exist, append a hint for the agent describing desired behavior
-                    if (identifierOnly.length) {
-                        const hint = `\n\n<!-- CODEDOC_HINT: For the following identifiers found as standalone paragraphs: ${identifierOnly.join(', ')}. Please add a concise (1-2 sentence) description for each and include the method's source code as a fenced code block (use the related code snippets provided). Only modify or augment these sections. -->`;
-                        existingSnippet += hint;
-                    }
+                    const existingSnippet = existing.length > 3000 ? existing.slice(0, 3000) + '\n\n...[truncated]' : existing;
                     const prompt = `You are given an existing markdown file (path: ${relPath}) and the current project structure context.\n\nExisting file content:\n---\n${existingSnippet}\n---\n\nReferenced code files (only include content when necessary):\n${referenced.join('\n')}\n\nPlease update this markdown so that it correctly documents the current codebase based on the referenced code. Only change sections that are inconsistent with the code; preserve formatting and headings where possible. Return the full, updated markdown content only.`;
                     // Build related file snippets to pass to the orchestrator
                     const relatedFilesForAgent = topFiles.map(f => ({ path: vscode.workspace.asRelativePath(f.uri), snippet: f.snippet }));
@@ -455,9 +436,7 @@ function activate(context) {
                         console.warn('[codedoc.syncDocs] failed to update suggestion for', relPath, respForFile.error);
                         continue;
                     }
-                    let suggested = respForFile.data;
-                    // Sanitize agent output to remove accidental fenced triples
-                    suggested = sanitizeMarkdownOutput(suggested);
+                    const suggested = respForFile.data;
                     const sim = similarity(existing, suggested);
                     console.debug('[codedoc.syncDocs] file', relPath, 'similarity', sim);
                     // Threshold: if similarity < 0.75, propose update
@@ -468,7 +447,7 @@ function activate(context) {
                         const ignore = 'Ignore';
                         const choice = await vscode.window.showInformationMessage(`${relPath} appears outdated relative to the code. Update this markdown?`, replace, preview, ignore);
                         if (choice === preview) {
-                            const doc = await vscode.workspace.openTextDocument({ content: sanitizeMarkdownOutput(suggested), language: 'markdown' });
+                            const doc = await vscode.workspace.openTextDocument({ content: suggested, language: 'markdown' });
                             await vscode.window.showTextDocument(doc, { preview: false });
                             // prompt again for replace
                             const confirm = await vscode.window.showInformationMessage(`Replace ${relPath} with suggested content?`, `Replace ${relPath}`, 'Cancel');
@@ -509,7 +488,6 @@ function activate(context) {
             vscode.window.showErrorMessage(`Error syncing docs: ${error}`);
         }
     }));
->>>>>>> Stashed changes
     context.subscriptions.push(vscode.commands.registerCommand('codedoc.visualizeCode', async () => {
         console.log('codedoc.visualizeCode command executed');
         try {
@@ -688,6 +666,14 @@ function activate(context) {
     });
     context.subscriptions.push(watcher);
     console.log('CodeDoc extension activation completed');
+    // Start Git remote poller to notify about remote updates
+    try {
+        const gitPoller = startGitRemotePoller();
+        context.subscriptions.push({ dispose: () => gitPoller.stop() });
+    }
+    catch (e) {
+        console.error('Failed to start git poller', e);
+    }
 }
 function deactivate() {
     console.log('CodeDoc extension is deactivated');
@@ -828,8 +814,6 @@ async function configureTemperature() {
     }
     return false;
 }
-<<<<<<< Updated upstream
-=======
 // --- Git helper functions and poller ---
 function execGit(cmd, cwd) {
     return new Promise((resolve, reject) => {
@@ -913,36 +897,6 @@ function startGitRemotePoller() {
             }
             // If remote head has advanced and local head now equals remote head, this is likely a pull
             if (remoteHead && remoteHead !== lastRemoteHead && localHead && localHead === remoteHead) {
-                // Sometimes remoteHead moves because *you* pushed from another clone. Check authors between lastRemoteHead..remoteHead
-                // and if all commits are authored by the local git user, treat it as a local push and skip prompting.
-                try {
-                    const rawRemoteCommits = await execGit(`log --format=%H|%an|%ae ${lastRemoteHead}..${remoteHead}`, cwd).catch(() => '');
-                    const remoteCommitLines = rawRemoteCommits ? rawRemoteCommits.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : [];
-                    const localName = (await execGit('config user.name', cwd).catch(() => '')).trim();
-                    const localEmail = (await execGit('config user.email', cwd).catch(() => '')).trim();
-                    let allLocalAuthored = true;
-                    for (const ln of remoteCommitLines) {
-                        const parts = ln.split('|');
-                        const authorName = parts[1] || '';
-                        const authorEmail = parts[2] || '';
-                        if (localEmail && authorEmail && authorEmail === localEmail)
-                            continue;
-                        if (localName && authorName && authorName === localName)
-                            continue;
-                        // if we can't match either, consider it non-local
-                        allLocalAuthored = false;
-                        break;
-                    }
-                    if (allLocalAuthored && remoteCommitLines.length) {
-                        console.debug('[gitPoller] remoteHead advanced but all commits authored by local user; skipping docs prompt');
-                        lastLocalHead = localHead;
-                        lastRemoteHead = remoteHead;
-                        return;
-                    }
-                }
-                catch (e) {
-                    // ignore and continue to normal behavior
-                }
                 // Determine which files changed in the incoming commits
                 const changed = await execGit(`diff --name-only ${lastLocalHead} ${localHead}`, cwd).catch(() => '');
                 let files = changed ? changed.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : [];
@@ -1083,20 +1037,4 @@ function startGitRemotePoller() {
         stop: () => { stopped = true; clearInterval(timer); }
     };
 }
-// Sanitize markdown-like output from LLMs/agents by removing surrounding code fences
-function sanitizeMarkdownOutput(text) {
-    if (!text || typeof text !== 'string')
-        return text;
-    let s = text.trim();
-    // If the entire content is wrapped in a single fenced block, remove the outer fences
-    const fullFence = s.match(/^```[^\n]*\n([\s\S]*)\n```$/);
-    if (fullFence && fullFence[1]) {
-        return fullFence[1].trim();
-    }
-    // Otherwise, strip a single leading fence and a single trailing fence if present
-    s = s.replace(/^```[^\n]*\n/, '');
-    s = s.replace(/\n```\s*$/, '');
-    return s.trim();
-}
->>>>>>> Stashed changes
 //# sourceMappingURL=extension.js.map
