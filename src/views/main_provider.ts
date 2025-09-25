@@ -6,6 +6,9 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'codedoc.mainView';
     private _view?: vscode.WebviewView;
     private _projectStructure?: ProjectStructure;
+    private _isAnalysisStarted: boolean = false;
+    private _isAnalysisCompleted: boolean = false;
+    private _webViewState: 'initial' | 'analyzing' | 'completed' = 'initial';
 
     constructor(private readonly _extensionUri: vscode.Uri) { }
 
@@ -21,7 +24,14 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             localResourceRoots: [this._extensionUri]
         };
         
+        // Enable context retention
+        (webviewView as any).retainContextWhenHidden = true;
+
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+
+        webviewView.onDidDispose(() => {
+            this._view = undefined;
+        });
 
         webviewView.webview.onDidReceiveMessage(
             message => {
@@ -65,6 +75,20 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 }
             }
         );
+        
+        // Restore state when webview is reopened
+        this._restoreWebViewState();
+    }
+    
+    private _restoreWebViewState() {
+        console.log('Restoring webview state. Current state:', {
+            hasProjectStructure: !!this._projectStructure,
+            isAnalysisStarted: this._isAnalysisStarted,
+            isAnalysisCompleted: this._isAnalysisCompleted,
+            webViewState: this._webViewState
+        });
+        
+        // Always restore the project structure if it exists, regardless of analysis state
         if (this._projectStructure) {
             console.log('Resending existing visualization data to newly resolved webview');
             setTimeout(() => {
@@ -78,12 +102,24 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         type: 'updateProjectStructureForDiagrams',
                         data: this._projectStructure
                     });
-
+                    
+                    // Restore the correct UI state based on analysis status
+                    if (this._isAnalysisCompleted) {
+                        this._view.webview.postMessage({
+                            type: 'analysisCompleted'
+                        });
+                    } else if (this._isAnalysisStarted) {
+                        this._view.webview.postMessage({
+                            type: 'analysisStarted'
+                        });
+                    }
                 }
-            }, 500); 
-        }else {
-            // Auto-trigger project analysis if no structure is available
+            }, 100); // Reduced delay for faster restoration
+        } else if (!this._isAnalysisStarted && this._webViewState === 'initial') {
+            // Auto-trigger project analysis only if no structure is available and analysis hasn't started
             console.log('No project structure available, triggering auto-analysis');
+            this._isAnalysisStarted = true;
+            this._webViewState = 'analyzing';
             
             // Notify webview that analysis is starting
             setTimeout(() => {
@@ -92,15 +128,44 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         type: 'analysisStarted'
                     });
                 }
-            }, 500);
+            }, 100);
             
             setTimeout(() => {
                 vscode.commands.executeCommand('codedoc.visualizeCode');
-            }, 1000);
+            }, 200);
+        } else if (this._webViewState === 'analyzing') {
+            // If we were analyzing before, show the analysis status
+            setTimeout(() => {
+                if (this._view && this._view.webview) {
+                    this._view.webview.postMessage({
+                        type: 'analysisStarted'
+                    });
+                }
+            }, 100);
+        } else if (this._webViewState === 'completed' && this._projectStructure) {
+            // If we had completed analysis before, ensure we show the completed state and data
+            setTimeout(() => {
+                if (this._view && this._view.webview) {
+                    // Send the visualization data first
+                    this._view.webview.postMessage({
+                        type: 'updateVisualization',
+                        data: this._prepareVisualizationData(this._projectStructure!)
+                    });
+                    
+                    // Then send the completion message
+                    this._view.webview.postMessage({
+                        type: 'analysisCompleted'
+                    });
+                }
+            }, 100);
         }
     }
+    
     public updateVisualization(structure: ProjectStructure) {
         this._projectStructure = structure;
+        this._isAnalysisCompleted = true;
+        this._webViewState = 'completed';
+        
         if (this._view && this._view.webview) {
             console.log('Sending visualization data to webview');
             setTimeout(() => {
@@ -116,8 +181,13 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         type: 'updateProjectStructureForDiagrams',
                         data: structure
                     });
+                    
+                    // Send analysis completed message
+                    this._view.webview.postMessage({
+                        type: 'analysisCompleted'
+                    });
                 }
-            }, 300); 
+            }, 100); // Reduced delay for faster updates
         } else {
             console.log('Webview not ready, cannot send data');
         }
@@ -148,45 +218,31 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                             console.log('Converted HTML length:', htmlContent?.length || 0);
                             console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
                             this._view!.webview.postMessage({
-                                type: 'showExplanation',
-                                text: htmlContent,
-                                markdown: content  
-                            });
-                        }).catch(error => {
-                            console.error('Error converting markdown to HTML:', error);
-                            // Fallback to showing raw content if markdown conversion fails
-                            this._view!.webview.postMessage({
-                                type: 'showExplanation',
-                                text: `<pre>${content || ''}</pre>`,
-                                markdown: content  
+                                type: 'showClassDocumentation',
+                                content: htmlContent
                             });
                         });
                     } else {
-                        const htmlContent = result as string;
-                        console.log('Converted HTML length:', htmlContent?.length || 0);
-                        console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
-                        this._view.webview.postMessage({
-                            type: 'showExplanation',
-                            text: htmlContent,
-                            markdown: content  
+                        console.log('Converted HTML length:', result?.length || 0);
+                        console.log('Converted HTML preview:', result?.substring(0, 200) + (result && result.length > 200 ? '...' : ''));
+                        this._view!.webview.postMessage({
+                                type: 'showClassDocumentation',
+                                content: result
                         });
                     }
                 } else {
-                    console.log('Content is already HTML, using as-is');
-                    this._view.webview.postMessage({
-                        type: 'showExplanation',
-                        text: content,
-                        markdown: content  
-                    });
+                    console.log('Content is already HTML, sending as is');
+                    this._view!.webview.postMessage({
+                                type: 'showClassDocumentation',
+                                content: content
+                        });
                 }
             } catch (error) {
-                console.error('Error converting markdown to HTML:', error);
-                // Fallback to showing raw content if markdown conversion fails
-                this._view.webview.postMessage({
-                    type: 'showExplanation',
-                    text: `<pre>${content || ''}</pre>`,
-                    markdown: content  
-                });
+                console.error('Error converting content to HTML:', error);
+                this._view!.webview.postMessage({
+                                type: 'showClassDocumentation',
+                                content: content
+                        });
             }
         }
     }
@@ -376,8 +432,14 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         }
     }
     private _refreshVisualization() {
+        // Reset state for refresh
+        this._isAnalysisStarted = true;
+        this._isAnalysisCompleted = false;
+        this._webViewState = 'analyzing';
+        
         if (this._view) {
             this._view.webview.postMessage({ type: 'refreshing' });
+            this._view.webview.postMessage({ type: 'analysisStarted' });
             vscode.commands.executeCommand('codedoc.visualizeCode');
         }
     }
@@ -649,6 +711,11 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 
                 .send-button:hover, .visualize-btn:hover {
                     background-color: var(--vscode-button-hoverBackground);
+                }
+                
+                #refresh-overview-btn {
+                    padding: 4px 8px;
+                    font-size: 12px;
                 }
                 
                 .visualization {
@@ -1224,6 +1291,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             <div id="overview-tab" class="tab-content active">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin: 0;">📊 Architecture Overview</h3>
+                    <button class="visualize-btn" id="refresh-overview-btn">🔄 Refresh</button>
                 </div>
                 
                 <div id="overview-placeholder" class="visualize-section">
@@ -1738,6 +1806,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             switchTab('visualization2');
         });
         document.getElementById('visualize-btn-large').addEventListener('click', refreshVisualization);
+        document.getElementById('refresh-overview-btn').addEventListener('click', refreshVisualization);
         
         document.getElementById('generate-project-doc-btn').addEventListener('click', generateProjectDocumentation);
         document.getElementById('generate-class-doc-btn').addEventListener('click', generateClassDocumentation);
@@ -1793,6 +1862,9 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                             break;
                         case 'analysisStarted':
                             showAnalysisStatus();
+                            break;
+                        case 'analysisCompleted':
+                            hideAnalysisStatus();
                             break;
                         case 'refreshing':
                             break;

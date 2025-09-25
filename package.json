@@ -54,7 +54,7 @@
         {
           "id": "codedoc-sidebar",
           "title": "CodeDoc",
-          "icon": "$(book)"
+          "icon": "./icons/cute-dog-icon-v2.svg"
         }
       ]
     },

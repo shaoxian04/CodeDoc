@@ -50,48 +50,47 @@ function activate(context) {
     const openaiService = new openai_service_1.OpenAIService();
     const mainProvider = new main_provider_1.MainViewProvider(context.extensionUri);
     const workflowOrchestrator = new workflow_orchestrator_langchain_1.WorkflowOrchestrator(); // Langchain-based workflow orchestrator with RAG and MCP
-    console.log("CodeDoc services initialized");
-    context.subscriptions.push(vscode.window.registerWebviewViewProvider("codedoc.mainView", mainProvider));
-    console.log("CodeDoc webview provider registered");
-    context.subscriptions.push(vscode.commands.registerCommand("codedoc.openChat", () => {
-        console.log("codedoc.openChat command executed");
-        vscode.commands.executeCommand("workbench.view.extension.codedoc-sidebar");
+    console.log('CodeDoc services initialized');
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider('codedoc.mainView', mainProvider));
+    console.log('CodeDoc webview provider registered');
+    context.subscriptions.push(vscode.commands.registerCommand('codedoc.openChat', () => {
+        console.log('codedoc.openChat command executed');
+        vscode.commands.executeCommand('workbench.view.extension.codedoc-sidebar');
     }));
-    context.subscriptions.push(vscode.commands.registerCommand("codedoc.clearChat", () => {
-        console.log("codedoc.clearChat command executed");
+    context.subscriptions.push(vscode.commands.registerCommand('codedoc.clearChat', () => {
+        console.log('codedoc.clearChat command executed');
         mainProvider.clearChat();
     }));
-    context.subscriptions.push(vscode.commands.registerCommand("codedoc.generateDocs", async () => {
-        console.log("codedoc.generateDocs command executed");
+    context.subscriptions.push(vscode.commands.registerCommand('codedoc.generateDocs', async () => {
+        console.log('codedoc.generateDocs command executed');
         try {
             // Check if API key is configured
-            const config = vscode.workspace.getConfiguration("codedoc");
-            const apiKey = config.get("openaiApiKey");
+            const config = vscode.workspace.getConfiguration('codedoc');
+            const apiKey = config.get('openaiApiKey');
             if (!apiKey) {
-                const result = await vscode.window.showErrorMessage("OpenAI API key not configured. Please configure it in the settings.", "Configure Now");
-                if (result === "Configure Now") {
-                    console.log("Redirecting to configureExtension command");
-                    vscode.commands.executeCommand("codedoc.configureExtension");
+                const result = await vscode.window.showErrorMessage('OpenAI API key not configured. Please configure it in the settings.', 'Configure Now');
+                if (result === 'Configure Now') {
+                    console.log('Redirecting to configureExtension command');
+                    vscode.commands.executeCommand('codedoc.configureExtension');
                 }
                 return;
             }
-            vscode.window.showInformationMessage("Generating documentation...");
+            vscode.window.showInformationMessage('Generating documentation...');
             // Parse the workspace to get project structure
             const structure = await javaParser.parseWorkspace();
             // Use the Langchain-based workflow orchestrator with RAG
-            const response = await workflowOrchestrator.generateProjectOverview(structure, "Generate comprehensive project overview documentation");
+            const response = await workflowOrchestrator.generateProjectOverview(structure, 'Generate comprehensive project overview documentation');
             if (response.success && response.data) {
                 mainProvider.showProjectDocumentation(response.data);
-                vscode.window.showInformationMessage("Documentation generated successfully!");
+                vscode.window.showInformationMessage('Documentation generated successfully!');
             }
             else {
-                vscode.window.showErrorMessage(response.error || "Failed to generate documentation");
+                vscode.window.showErrorMessage(response.error || 'Failed to generate documentation');
             }
         }
         catch (error) {
-            if (error instanceof Error &&
-                error.message.includes("Client is not running")) {
-                vscode.window.showErrorMessage("Java language server is not ready yet. Please wait a moment and try again.");
+            if (error instanceof Error && error.message.includes('Client is not running')) {
+                vscode.window.showErrorMessage('Java language server is not ready yet. Please wait a moment and try again.');
             }
             else {
                 vscode.window.showErrorMessage(`Error generating documentation: ${error}`);
@@ -489,8 +488,8 @@ function activate(context) {
             vscode.window.showErrorMessage(`Error syncing docs: ${error}`);
         }
     }));
-    context.subscriptions.push(vscode.commands.registerCommand('codedoc.visualizeCode', async () => {
-        console.log('codedoc.visualizeCode command executed');
+    context.subscriptions.push(vscode.commands.registerCommand("codedoc.visualizeCode", async () => {
+        console.log("codedoc.visualizeCode command executed");
         try {
             // Check if API key is configured
             const config = vscode.workspace.getConfiguration("codedoc");
@@ -908,20 +907,19 @@ function activate(context) {
         }
     }));
     vscode.commands.executeCommand("setContext", "codedoc.chatViewEnabled", true);
-    const watcher = vscode.workspace.createFileSystemWatcher("**/*.java");
-    watcher.onDidChange(() => {
-        // Debounce the parsing to avoid too frequent updates
-        setTimeout(async () => {
-            try {
-                await vscode.commands.executeCommand("codedoc.visualizeCode");
-            }
-            catch (error) {
-                console.error("Error during auto-parse:", error);
-            }
-        }, 2000);
-    });
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*.java');
+    // watcher.onDidChange(() => {
+    //     // Debounce the parsing to avoid too frequent updates
+    //     setTimeout(async () => {
+    //         try {
+    //             await vscode.commands.executeCommand('codedoc.visualizeCode');
+    //         } catch (error) {
+    //             console.error('Error during auto-parse:', error);
+    //         }
+    //     }, 2000);
+    // });
     context.subscriptions.push(watcher);
-    console.log("CodeDoc extension activation completed");
+    console.log('CodeDoc extension activation completed');
     // Start Git remote poller to notify about remote updates
     try {
         const gitPoller = startGitRemotePoller();

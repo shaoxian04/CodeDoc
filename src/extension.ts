@@ -10,13 +10,12 @@ import * as fs from 'fs';
 export function activate(context: vscode.ExtensionContext) {
   console.log("CodeDoc extension is now active!");
 
-  // Log activation for debugging
   console.log("CodeDoc extension activation started");
 
     const javaParser = new JavaParser();
     const openaiService = new OpenAIService();
     const mainProvider = new MainViewProvider(context.extensionUri);
-    const workflowOrchestrator = new WorkflowOrchestrator(); // Langchain-based workflow orchestrator with RAG and MCP
+    const workflowOrchestrator = new WorkflowOrchestrator(); 
     
     console.log('CodeDoc services initialized');
     
@@ -1046,16 +1045,16 @@ export function activate(context: vscode.ExtensionContext) {
   vscode.commands.executeCommand("setContext", "codedoc.chatViewEnabled", true);
 
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.java');
-    watcher.onDidChange(() => {
-        // Debounce the parsing to avoid too frequent updates
-        setTimeout(async () => {
-            try {
-                await vscode.commands.executeCommand('codedoc.visualizeCode');
-            } catch (error) {
-                console.error('Error during auto-parse:', error);
-            }
-        }, 2000);
-    });
+    // watcher.onDidChange(() => {
+    //     // Debounce the parsing to avoid too frequent updates
+    //     setTimeout(async () => {
+    //         try {
+    //             await vscode.commands.executeCommand('codedoc.visualizeCode');
+    //         } catch (error) {
+    //             console.error('Error during auto-parse:', error);
+    //         }
+    //     }, 2000);
+    // });
     context.subscriptions.push(watcher);
     
     console.log('CodeDoc extension activation completed');
