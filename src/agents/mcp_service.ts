@@ -36,17 +36,13 @@ export class MCPService {
         };
     }
 
-    /**
-     * Register an agent with the MCP
-     */
+
     public registerAgent(name: string, agent: Agent): void {
         console.log('Registering agent:', name);
         this.agents.set(name, agent);
     }
 
-    /**
-     * Send a message to a specific agent
-     */
+
     public async sendMessage(message: AgentMessage): Promise<any> {
         console.log('Sending message:', message);
         this.messageQueue.push(message);
@@ -69,9 +65,6 @@ export class MCPService {
         }
     }
 
-    /**
-     * Broadcast a message to all agents
-     */
     public async broadcastMessage(message: AgentMessage): Promise<any[]> {
         const responses: any[] = [];
         
@@ -99,9 +92,7 @@ export class MCPService {
         return responses;
     }
 
-    /**
-     * Update shared context
-     */
+
     public updateSharedContext(updates: Partial<SharedContext>): void {
         this.sharedContext = {
             ...this.sharedContext,
@@ -109,23 +100,17 @@ export class MCPService {
         };
     }
 
-    /**
-     * Get shared context
-     */
+
     public getSharedContext(): SharedContext {
         return { ...this.sharedContext };
     }
 
-    /**
-     * Add an observer for message monitoring
-     */
+
     public addObserver(observer: (message: AgentMessage) => void): void {
         this.observers.push(observer);
     }
 
-    /**
-     * Remove an observer
-     */
+
     public removeObserver(observer: (message: AgentMessage) => void): void {
         const index = this.observers.indexOf(observer);
         if (index > -1) {
@@ -137,9 +122,7 @@ export class MCPService {
         this.observers.forEach(observer => observer(message));
     }
 
-    /**
-     * Coordinate a task between multiple agents
-     */
+
     public async coordinateTask(
         coordinator: string,
         task: string,
@@ -159,10 +142,9 @@ export class MCPService {
             timestamp: new Date()
         };
 
-        // Broadcast to all agents
+
         const responses = await this.broadcastMessage(coordinationMessage);
         
-        // Process responses and determine next steps
         return {
             task,
             coordinator,

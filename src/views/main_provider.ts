@@ -76,7 +76,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             }
         );
         
-        // Restore state when webview is reopened
         this._restoreWebViewState();
     }
     
@@ -88,7 +87,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             webViewState: this._webViewState
         });
         
-        // Always restore the project structure if it exists, regardless of analysis state
         if (this._projectStructure) {
             console.log('Resending existing visualization data to newly resolved webview');
             setTimeout(() => {
@@ -114,14 +112,13 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         });
                     }
                 }
-            }, 100); // Reduced delay for faster restoration
+            }, 100); 
         } else if (!this._isAnalysisStarted && this._webViewState === 'initial') {
             // Auto-trigger project analysis only if no structure is available and analysis hasn't started
             console.log('No project structure available, triggering auto-analysis');
             this._isAnalysisStarted = true;
             this._webViewState = 'analyzing';
             
-            // Notify webview that analysis is starting
             setTimeout(() => {
                 if (this._view && this._view.webview) {
                     this._view.webview.postMessage({
@@ -134,7 +131,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 vscode.commands.executeCommand('codedoc.visualizeCode');
             }, 200);
         } else if (this._webViewState === 'analyzing') {
-            // If we were analyzing before, show the analysis status
             setTimeout(() => {
                 if (this._view && this._view.webview) {
                     this._view.webview.postMessage({
@@ -143,16 +139,13 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 }
             }, 100);
         } else if (this._webViewState === 'completed' && this._projectStructure) {
-            // If we had completed analysis before, ensure we show the completed state and data
             setTimeout(() => {
                 if (this._view && this._view.webview) {
-                    // Send the visualization data first
                     this._view.webview.postMessage({
                         type: 'updateVisualization',
                         data: this._prepareVisualizationData(this._projectStructure!)
                     });
                     
-                    // Then send the completion message
                     this._view.webview.postMessage({
                         type: 'analysisCompleted'
                     });
@@ -176,18 +169,16 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         data: this._prepareVisualizationData(structure)
                     });
                     
-                    // Also update project structure for diagram generator
                     this._view.webview.postMessage({
                         type: 'updateProjectStructureForDiagrams',
                         data: structure
                     });
                     
-                    // Send analysis completed message
                     this._view.webview.postMessage({
                         type: 'analysisCompleted'
                     });
                 }
-            }, 100); // Reduced delay for faster updates
+            }, 100); 
         } else {
             console.log('Webview not ready, cannot send data');
         }
@@ -204,14 +195,12 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             console.log('showClassDocumentation called with content length:', content?.length || 0);
             console.log('Content preview:', content?.substring(0, 200) + (content && content.length > 200 ? '...' : ''));
             
-            // Check if content is already HTML
             const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>'));
             console.log('Content is HTML:', isHtml);
             
             try {
                 if (!isHtml) {
                     console.log('Converting markdown to HTML');
-                    // Handle both synchronous and asynchronous versions of marked
                     const result = marked(content);
                     if (result instanceof Promise) {
                         result.then(htmlContent => {
@@ -252,14 +241,12 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             console.log('showProjectDocumentation called with content length:', content?.length || 0);
             console.log('Content preview:', content?.substring(0, 200) + (content && content.length > 200 ? '...' : ''));
             
-            // Check if content is already HTML
             const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>'));
             console.log('Content is HTML:', isHtml);
             
             try {
                 if (!isHtml) {
                     console.log('Converting markdown to HTML');
-                    // Handle both synchronous and asynchronous versions of marked
                     const result = marked(content);
                     if (result instanceof Promise) {
                         result.then(htmlContent => {
@@ -272,7 +259,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                             });
                         }).catch(error => {
                             console.error('Error converting markdown to HTML:', error);
-                            // Fallback to showing raw content if markdown conversion fails
                             this._view!.webview.postMessage({
                                 type: 'showProjectOverview',
                                 text: `<pre>${content || ''}</pre>`,
@@ -299,7 +285,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 }
             } catch (error) {
                 console.error('Error converting markdown to HTML:', error);
-                // Fallback to showing raw content if markdown conversion fails
                 this._view.webview.postMessage({
                     type: 'showProjectOverview',
                     text: `<pre>${content || ''}</pre>`,
@@ -312,32 +297,25 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     public showChatResponse(response: any) {
         console.log('showChatResponse called with:', response);
         if (this._view) {
-            // The response comes from the workflow orchestrator which wraps the chat agent response
-            // So we need to unwrap it first
+
             let chatResponse = response;
             if (response && response.success && response.data) {
-                // Unwrap the response from the workflow orchestrator
                 chatResponse = response.data;
             }
             console.log('Unwrapped chat response:', chatResponse);
             
-            // Format the response based on the action type
             switch (chatResponse.action) {
                 case 'generateDocumentation':
-                    // Handle documentation generation
-                    // The documentation content is directly in chatResponse.data
                     let documentationContent = chatResponse.data;
                     console.log('Documentation content:', documentationContent);
                     
                     if (documentationContent) {
-                        // Show the generated documentation in the explanation tab
                         const htmlContent = marked(documentationContent);
                         this._view.webview.postMessage({
                             type: 'showExplanation',
                             text: htmlContent,
                             markdown: documentationContent
                         });
-                        // Show a message in the chat
                         this._view.webview.postMessage({
                             type: 'botResponse',
                             text: chatResponse.message || 'I\'ve generated the documentation for you. You can find it in the Code Explanation tab.'
@@ -350,7 +328,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     }
                     break;
                 case 'generateVisualization':
-                    // Handle visualization generation
                     if (chatResponse.message) {
                         this._view.webview.postMessage({
                             type: 'botResponse',
@@ -364,7 +341,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     }
                     break;
                 case 'answerQuestion':
-                    // For question answers, also convert markdown to HTML
                     const answerHtmlContent = marked(chatResponse.message || 'Here\'s what I found:');
                     this._view.webview.postMessage({
                         type: 'botResponse',
@@ -410,15 +386,12 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     }
 
     private _handleUserMessage(message: string) {
-        // Send message to backend for processing by the Langchain-based chat agent
         if (this._view) {
-            // Show loading indicator
             this._view.webview.postMessage({
                 type: 'botResponse',
                 text: 'Thinking...'
             });
             
-            // Send message to backend
             vscode.commands.executeCommand('codedoc.processChatMessage', message);
         }
     }
@@ -432,7 +405,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         }
     }
     private _refreshVisualization() {
-        // Reset state for refresh
         this._isAnalysisStarted = true;
         this._isAnalysisCompleted = false;
         this._webViewState = 'analyzing';
@@ -455,9 +427,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     private _exportClassDocumentation(content: string) {
         vscode.commands.executeCommand('codedoc.exportClassDocs', content);
     }
-    //TODO: check this visualization function
     private _handleDiagramGeneration(message: any) {
-        // Check if project structure is available
         if (!this._projectStructure) {
             this._view?.webview.postMessage({
                 type: 'diagramError',
@@ -466,7 +436,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             return;
         }
 
-        // Send diagram generation request to backend
         vscode.commands.executeCommand('codedoc.generateDiagram', {
             diagramType: message.diagramType,
             scope: message.scope,
@@ -528,7 +497,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     }
 
     private _prepareVisualizationData(structure: ProjectStructure) {
-        // Categorize classes by architectural layers with enhanced detection
         const layers = {
             controllers: structure.classes.filter(cls => 
                 cls.annotations.some(ann => ann.includes('@Controller') || ann.includes('@RestController')) ||
@@ -1482,7 +1450,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
         function exportClassDocumentation() {
             const contentContainer = document.getElementById('class-documentation-content');
-            // Use stored markdown content if available, otherwise use HTML content
             const markdownContent = contentContainer.dataset.markdown;
             const content = markdownContent || document.getElementById('class-documentation-text').innerHTML;
             vscode.postMessage({ type: 'exportClassDocs', content: content });
@@ -1498,16 +1465,13 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     document.getElementById('class-documentation-content').style.display = 'block';
                     const docTextElement = document.getElementById('class-documentation-text');
                     
-                    // Check if content is already HTML or needs to be converted
                     const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>') || content.includes('<div'));
                     console.log('Content is HTML in webview:', isHtml);
                     
                     if (isHtml) {
-                        // Content is already HTML
                         console.log('Content is already HTML, using as-is');
                         docTextElement.innerHTML = content;
                     } else {
-                        // Content is markdown, convert it to HTML
                         console.log('Converting markdown to HTML in webview');
                         try {
                             const convertedHtml = marked(content || '');
@@ -1522,12 +1486,10 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         }
                     }
                     
-                    // Force reflow to ensure proper rendering
                     docTextElement.style.display = 'none';
                     docTextElement.offsetHeight; // Trigger reflow
                     docTextElement.style.display = 'block';
                     
-                    // Apply styling to markdown elements and process Mermaid diagrams
                     setTimeout(() => {
                         applyMarkdownStyling(docTextElement);
                         processMermaidDiagrams(docTextElement);
@@ -1544,16 +1506,13 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     document.getElementById('class-documentation-content').style.display = 'block';
                     const docTextElement = document.getElementById('class-documentation-text');
                     
-                    // Check if content is already HTML or needs to be converted
                     const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>') || content.includes('<div'));
                     console.log('Content is HTML in webview:', isHtml);
                     
                     if (isHtml) {
-                        // Content is already HTML
                         console.log('Content is already HTML, using as-is');
                         docTextElement.innerHTML = content;
                     } else {
-                        // Content is markdown, convert it to HTML
                         console.log('Converting markdown to HTML in webview');
                         try {
                             const convertedHtml = marked(content || '');
@@ -1568,12 +1527,10 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         }
                     }
                     
-                    // Force reflow to ensure proper rendering
                     docTextElement.style.display = 'none';
                     docTextElement.offsetHeight; // Trigger reflow
                     docTextElement.style.display = 'block';
                     
-                    // Apply styling to markdown elements and process Mermaid diagrams
                     setTimeout(() => {
                         applyMarkdownStyling(docTextElement);
                         processMermaidDiagrams(docTextElement);
@@ -1583,7 +1540,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     console.log('Processing Mermaid diagrams...');
                     console.log('Element HTML:', element.innerHTML);
                     
-                    // Find all code blocks that might contain Mermaid
                     const codeBlocks = element.querySelectorAll('pre code, code');
                     console.log('Found code blocks:', codeBlocks.length);
                     let mermaidCount = 0;
@@ -1591,7 +1547,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     codeBlocks.forEach((block, index) => {
                         const content = block.textContent || '';
                         
-                        // Check if this is a Mermaid diagram
                         if (content.trim().startsWith('erDiagram') || 
                             content.trim().startsWith('classDiagram') || 
                             content.trim().startsWith('graph') ||
@@ -1603,7 +1558,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                             
                             console.log('Found Mermaid diagram:', content.substring(0, 50) + '...');
                             
-                            // Create a new div for the Mermaid diagram
                             const mermaidDiv = document.createElement('div');
                             mermaidDiv.className = 'mermaid';
                             mermaidDiv.textContent = content.trim();
@@ -1615,7 +1569,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                             mermaidDiv.style.borderRadius = '8px';
                             mermaidDiv.style.border = '1px solid var(--vscode-panel-border)';
                             
-                            // Replace the code block with the Mermaid div
                             const parentPre = block.closest('pre');
                             if (parentPre) {
                                 parentPre.replaceWith(mermaidDiv);
@@ -1627,18 +1580,15 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         }
                     });
                     
-                    // Render Mermaid diagrams if any were found
                     if (mermaidCount > 0 && typeof mermaid !== 'undefined') {
                         console.log('Rendering ' + mermaidCount + ' Mermaid diagrams...');
                         try {
-                            // Use mermaid.run() to render all diagrams with class 'mermaid'
                             mermaid.run({
                                 querySelector: '.mermaid'
                             });
                             console.log('Mermaid diagrams rendered successfully');
                         } catch (error) {
                             console.error('Error rendering Mermaid diagrams:', error);
-                            // Fallback: try the older API
                             try {
                                 mermaid.init(undefined, '.mermaid');
                                 console.log('Mermaid diagrams rendered with fallback method');
@@ -1652,7 +1602,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 }
 
                 function applyMarkdownStyling(element) {
-                    // Apply styling to all markdown elements
                     element.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(el => {
                         el.style.marginTop = '1em';
                         el.style.marginBottom = '0.5em';
@@ -1742,7 +1691,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         visualizationContent.innerHTML = '<div class="architecture-layers-container"></div>';
         const layersContainer = visualizationContent.querySelector('.architecture-layers-container');
         
-        // Controllers layer
         if (data.layers.controllers.length > 0) {
             const controllerLayer = document.createElement('div');
             controllerLayer.className = 'architecture-layer';
@@ -1750,7 +1698,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             layersContainer.appendChild(controllerLayer);
         }
         
-        // Services layer
         if (data.layers.services.length > 0) {
             const serviceLayer = document.createElement('div');
             serviceLayer.className = 'architecture-layer';
@@ -1758,7 +1705,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             layersContainer.appendChild(serviceLayer);
         }
         
-        // Repositories layer
         if (data.layers.repositories.length > 0) {
             const repositoryLayer = document.createElement('div');
             repositoryLayer.className = 'architecture-layer';
@@ -1766,7 +1712,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             layersContainer.appendChild(repositoryLayer);
         }
         
-        // Entities layer
         if (data.layers.entities.length > 0) {
             const entityLayer = document.createElement('div');
             entityLayer.className = 'architecture-layer';
@@ -1774,7 +1719,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             layersContainer.appendChild(entityLayer);
         }
         
-        // Others layer
         if (data.layers.others.length > 0) {
             const otherLayer = document.createElement('div');
             otherLayer.className = 'architecture-layer';
@@ -1782,7 +1726,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             layersContainer.appendChild(otherLayer);
         }
         
-        // Add click handlers for class cards
         document.querySelectorAll('.class-card').forEach(card => {
             card.addEventListener('click', () => {
                 const nodeId = card.getAttribute('data-id');
@@ -1813,10 +1756,8 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         document.getElementById('export-class-doc-btn').addEventListener('click', exportClassDocumentation);
         document.getElementById('back-to-explanation-btn').addEventListener('click', showExplanationOptions);
 
-        // Initialize diagram generator
         initializeDiagramGenerator();
                     
-        // Show analysis status if no project structure is available
         if (!currentProjectStructure) {
             showAnalysisStatus();
         }
@@ -1890,7 +1831,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
 
-        // Clear input
         document.getElementById('chatInput').value = '';
     }
     
@@ -2065,22 +2005,17 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     }
                     contentDiv.innerHTML = htmlContent;
 
-                    // Process Mermaid diagrams after a short delay
                     setTimeout(() => {
                         processMermaidDiagrams(contentDiv);
                     }, 200);
 
-                    // Update stats
                     statsElement.textContent = diagramData.stats || '';
 
-                    // Enable export buttons
                     document.getElementById('exportDiagramBtn').disabled = false;
                     document.getElementById('copyDiagramBtn').disabled = false;
 
-                    // Show result
                     resultDiv.style.display = 'block';
 
-                    // Scroll to result
                     resultDiv.scrollIntoView({ behavior: 'smooth' });
                 }
                 function exportDiagram() {
@@ -2162,32 +2097,23 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     const contentDiv = document.getElementById('diagramContent');
                     const statsElement = document.getElementById('diagramStats');
                     
-                    // Hide loading
                     loadingDiv.style.display = 'none';
                     
-                    // Clear diagram data
                     currentDiagramData = null;
-                    
-                    // Update title
                     titleElement.textContent = 'Class Diagram (Error)';
                     
-                    // Show error message
                     contentDiv.innerHTML = '<div class="error-message" style="color: #f48771; padding: 20px; text-align: center; border: 1px solid #f48771; border-radius: 4px; background-color: rgba(244, 135, 113, 0.1);">' +
                         '<h4>Failed to generate diagram</h4>' +
                         '<p>' + errorMessage + '</p>' +
                         '</div>';
                     
-                    // Update stats
                     statsElement.textContent = 'Generation failed';
                     
-                    // Disable export buttons
                     document.getElementById('exportDiagramBtn').disabled = true;
                     document.getElementById('copyDiagramBtn').disabled = true;
                     
-                    // Show result
                     resultDiv.style.display = 'block';
                     
-                    // Scroll to result
                     resultDiv.scrollIntoView({ behavior: 'smooth' });
                 }
                 function updateProjectStructureForDiagrams(structure) {
@@ -2207,18 +2133,15 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 }
                 
             
-    // Add chat functionality
     document.addEventListener('DOMContentLoaded', () => {
         const chatInput = document.getElementById('chatInput');
         const sendButton = document.getElementById('sendButton');
 
-        // Auto-resize textarea
         chatInput.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = (this.scrollHeight) + 'px';
         });
 
-        // Send message on button click
         sendButton.addEventListener('click', () => {
             const message = chatInput.value.trim();
             if (message) {
@@ -2235,12 +2158,10 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 chatMessages.appendChild(userMessageDiv);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
 
-                // Send to backend
                 vscode.postMessage({ type: 'sendMessage', text: message });
             }
         });
 
-        // Send message on Enter key (without Shift)
         chatInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();

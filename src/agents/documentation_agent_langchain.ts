@@ -604,10 +604,8 @@ DIAGRAM GUIDELINES:
     try {
       const model = this.initializeModel();
 
-      // Analyze project complexity and Spring patterns
       const projectAnalysis = this.analyzeProjectStructure(structure);
       
-      // Generate architecture diagram using Visualization Agent
       let architectureDiagram = '';
       try {
         architectureDiagram = await this.visualizationAgent.execute({
@@ -620,7 +618,6 @@ DIAGRAM GUIDELINES:
         architectureDiagram = this.generateFallbackArchitectureDiagram(structure);
       }
 
-      // Create enhanced project overview prompt
       let finalPrompt = this.createProjectOverviewPrompt(projectAnalysis, architectureDiagram);
 
       if (userQuery && structure) {
@@ -635,13 +632,10 @@ DIAGRAM GUIDELINES:
         finalPrompt = augmentedPrompt;
       }
 
-      // Use direct model invocation to avoid template parsing issues
       const result = await model.invoke(finalPrompt + `\n\nProject Structure Summary:\n${this.createEnhancedStructureSummary(structure)}`);
 
-      // Extract content from result
       const content = typeof result.content === 'string' ? result.content : result.toString();
       
-      // Return content directly without adding automatic ERDs
       return content;
     } catch (error) {
       if (
@@ -666,14 +660,11 @@ DIAGRAM GUIDELINES:
     try {
       const model = this.initializeModel();
 
-      // Analyze class complexity to determine documentation approach
       const complexity = this.analyzeComplexity(javaClass);
       const springInfo = this.getSpringContextInfo(javaClass);
       
-      // Create class-to-file mapping for hyperlinks
       const classFileMap = this.createClassFileMap(relatedClasses, javaClass);
       
-      // Get usage examples (real + synthetic) with error handling
       let usageExamples: { realExamples: any[]; syntheticExamples: SyntheticExample[] } = { 
         realExamples: [], 
         syntheticExamples: [] 
@@ -684,7 +675,6 @@ DIAGRAM GUIDELINES:
         console.warn('Failed to get usage examples, using empty examples:', error);
       }
       
-      // Generate class relationship diagram with error handling
       let relationshipDiagram = '';
       try {
         relationshipDiagram = await this.generateClassRelationshipDiagram(javaClass, relatedClasses);
@@ -696,7 +686,6 @@ DIAGRAM GUIDELINES:
       let finalPrompt = this.createAdaptivePrompt(complexity, springInfo, classFileMap, usageExamples, relationshipDiagram);
 
       if (userQuery && javaClass) {
-        // For class documentation, we can create a simple context
         const context = {
           relevantClasses: [javaClass],
           relevantMethods: javaClass.methods.map((method: any) => ({
@@ -723,7 +712,6 @@ DIAGRAM GUIDELINES:
           finalPrompt,
           context
         );
-        // Use the augmented prompt directly instead of treating it as a template
         finalPrompt = augmentedPrompt;
       }
 
@@ -761,13 +749,11 @@ DIAGRAM GUIDELINES:
         .map((cls: any) => `- ${cls.name} (${cls.package})`)
         .join("\n");
 
-      // Prepare Spring-specific information
       const springPatternsStr = javaClass.springPatterns?.map((p: any) => 
         `${p.type}: ${p.description}`).join(", ") || "None";
       const springDependenciesStr = javaClass.springDependencies?.map((d: any) => 
         `${d.fieldName} (${d.type}) - ${d.annotation}`).join(", ") || "None";
       
-      // Prepare class file mapping for hyperlinks
       const classFileMapStr = Object.entries(classFileMap)
         .map(([className, filePath]) => `${className}: ${filePath}`)
         .join(", ");
@@ -794,7 +780,7 @@ DIAGRAM GUIDELINES:
         error instanceof Error &&
         error.message.includes("API key not configured")
       ) {
-        throw error; // Re-throw configuration errors
+        throw error; 
       }
       throw new Error(
         `Failed to generate class documentation: ${
@@ -804,7 +790,6 @@ DIAGRAM GUIDELINES:
     }
   }
 
-    // Update an existing markdown file to reflect the current codebase and related files
     private async updateMarkdownFile(structure: ProjectStructure, existing: string, relatedFiles: Array<{path:string, snippet:string}> = [], relPath?: string): Promise<string> {
         try {
             const model = this.initializeModel();
@@ -828,7 +813,6 @@ DIAGRAM GUIDELINES:
             const promptTemplate = PromptTemplate.fromTemplate(finalPrompt);
             const chain = promptTemplate.pipe(model).pipe(this.outputParser);
             const result = await chain.invoke({ existing: existing.slice(0, 3000), snippets });
-            // Remove surrounding markdown fences if present
             if (typeof result === 'string') {
                 let s = result.trim();
                 const fullFence = s.match(/^```[^\n]*\n([\s\S]*)\n```$/);
@@ -851,7 +835,6 @@ DIAGRAM GUIDELINES:
   private createStructureSummary(structure: ProjectStructure): string {
     let summary = `Total Classes: ${structure.classes.length}\n\n`;
 
-    // Group classes by package
     const packageGroups: { [key: string]: any[] } = {};
     structure.classes.forEach((cls) => {
       const pkg = cls.package || "default";
@@ -866,7 +849,6 @@ DIAGRAM GUIDELINES:
       summary += `- ${pkg}: ${classes.length} classes\n`;
     });
 
-    // Add Spring components
     const springComponents = structure.classes.filter((cls) =>
       cls.annotations.some(
         (ann) =>
@@ -893,7 +875,6 @@ DIAGRAM GUIDELINES:
       });
     }
 
-    // Add relationships
     summary += `\nKey Relationships:\n`;
     const relationshipCounts = structure.relationships.reduce((acc, rel) => {
       acc[rel.type] = (acc[rel.type] || 0) + 1;
@@ -912,24 +893,20 @@ DIAGRAM GUIDELINES:
     structureSummary: string,
     model: ChatOpenAI
   ): Promise<string> {
-    // Check for properly formatted diagrams
     const hasERD =
       result.includes("```mermaid") && result.includes("erDiagram");
     const hasClassDiagram =
       result.includes("```mermaid") && result.includes("classDiagram");
 
-    // Also check for malformed diagrams (content without proper markdown formatting)
     const hasMalformedERD =
       result.includes("erDiagram") && !result.includes("```mermaid");
     const hasMalformedClassDiagram =
       result.includes("classDiagram") && !result.includes("```mermaid");
 
-    // Fix malformed diagrams by adding proper markdown formatting
     if (hasMalformedERD || hasMalformedClassDiagram) {
       result = this.fixMalformedDiagrams(result);
     }
 
-    // If diagrams are still missing after fixing, generate them
     const finalHasERD =
       result.includes("```mermaid") && result.includes("erDiagram");
     const finalHasClassDiagram =
@@ -939,7 +916,6 @@ DIAGRAM GUIDELINES:
       return result;
     }
 
-    // Generate missing diagrams with proper structure
     let missingDiagrams = "";
 
     if (!finalHasERD) {
@@ -954,7 +930,6 @@ DIAGRAM GUIDELINES:
   }
 
   private fixMalformedDiagrams(result: string): string {
-    // Fix ERD formatting
     if (result.includes("erDiagram") && !result.includes("```mermaid")) {
       const erdRegex = /(erDiagram[\s\S]*?)(?=\n##|\n#|$)/;
       result = result.replace(erdRegex, (match) => {
@@ -962,7 +937,6 @@ DIAGRAM GUIDELINES:
       });
     }
 
-    // Fix Class Diagram formatting
     if (result.includes("classDiagram") && !result.includes("```mermaid")) {
       const classRegex = /(classDiagram[\s\S]*?)(?=\n##|\n#|$)/;
       result = result.replace(classRegex, (match) => {
@@ -974,7 +948,6 @@ DIAGRAM GUIDELINES:
   }
 
   private generateFallbackERD(structureSummary: string): string {
-    // Extract class names from structure summary for basic ERD
     const classMatches = structureSummary.match(/- (\w+):/g);
     const classes = classMatches
       ? classMatches.map((match) => match.replace(/- |:/g, ""))
@@ -983,12 +956,10 @@ DIAGRAM GUIDELINES:
     let erdContent =
       "\n\n## Entity Relationship Diagram (ERD)\n```mermaid\nerDiagram\n";
 
-    // Create basic entities
     classes.slice(0, 3).forEach((className) => {
       erdContent += `    ${className} {\n        string id\n        string name\n    }\n`;
     });
 
-    // Add basic relationships
     if (classes.length >= 2) {
       erdContent += `    ${classes[0]} ||--o{ ${classes[1]} : "relates_to"\n`;
     }
@@ -998,7 +969,6 @@ DIAGRAM GUIDELINES:
   }
 
   private generateFallbackClassDiagram(structureSummary: string): string {
-    // Extract class names from structure summary for basic class diagram
     const classMatches = structureSummary.match(/- (\w+):/g);
     const classes = classMatches
       ? classMatches.map((match) => match.replace(/- |:/g, ""))
@@ -1006,12 +976,10 @@ DIAGRAM GUIDELINES:
 
     let classContent = "\n\n## Class Diagram\n```mermaid\nclassDiagram\n";
 
-    // Create basic classes
     classes.slice(0, 3).forEach((className) => {
       classContent += `    class ${className} {\n        +field: String\n        +method()\n    }\n`;
     });
 
-    // Add basic relationships
     if (classes.length >= 2) {
       classContent += `    ${classes[0]} --> ${classes[1]}\n`;
     }

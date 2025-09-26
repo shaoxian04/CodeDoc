@@ -303,12 +303,11 @@ export class WorkflowOrchestrator {
         }
     }
 
-    // MCP coordination method
+
     async coordinateAgents(task: string, payload: any): Promise<any> {
         return await this.mcpService.coordinateTask('WorkflowOrchestrator', task, payload);
     }
 
-    // Wrapper method to update markdown file
     async updateMarkdownFile(structure: ProjectStructure, existing: string, relatedFiles: Array<{path: string, snippet: string}> = [], relPath?: string): Promise<{ success: boolean; data?: string; error?: string }> {
         try {
             const result = await this.documentationAgent['updateMarkdownFile'](structure, existing, relatedFiles, relPath);

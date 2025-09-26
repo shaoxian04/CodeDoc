@@ -14,7 +14,6 @@ export class VisualizationAgent implements Agent {
   constructor() {
     this.outputParser = new StringOutputParser();
     this.ragService = new RAGService();
-    // We don't initialize the model here to avoid requiring API key during extension activation
   }
 
   private initializeModel(): ChatOpenAI {
@@ -22,7 +21,6 @@ export class VisualizationAgent implements Agent {
       return this.model;
     }
 
-    // Get configuration
     const config = vscode.workspace.getConfiguration("codedoc");
     const apiKey = config.get<string>("openaiApiKey");
     const modelName = config.get<string>("openaiModel", "gpt-4");
@@ -31,7 +29,6 @@ export class VisualizationAgent implements Agent {
 
     if (!apiKey) {
       throw new Error(
-        "OpenAI API key not configured. Please configure it in the settings."
       );
     }
 
@@ -109,17 +106,13 @@ export class VisualizationAgent implements Agent {
           finalPrompt,
           context
         );
-        // Use the augmented prompt directly instead of treating it as a template
         finalPrompt = augmentedPrompt;
       }
 
-      // Use the existing JavaParser to get project structure
       const javaParser = new JavaParser();
 
-      // Create a prompt for generating architecture description
       const promptTemplate = PromptTemplate.fromTemplate(finalPrompt);
 
-      // Convert structure to a readable format for the LLM
       const structureSummary = this.createStructureSummary(structure);
 
       const chain = promptTemplate.pipe(model).pipe(this.outputParser);
@@ -131,7 +124,7 @@ export class VisualizationAgent implements Agent {
         error instanceof Error &&
         error.message.includes("API key not configured")
       ) {
-        throw error; // Re-throw configuration errors
+        throw error; 
       }
       throw new Error(
         `Failed to generate architecture description: ${
@@ -144,7 +137,6 @@ export class VisualizationAgent implements Agent {
   private createStructureSummary(structure: ProjectStructure): string {
     let summary = `Total Classes: ${structure.classes.length}\n\n`;
 
-    // Group classes by package
     const packageGroups: { [key: string]: any[] } = {};
     structure.classes.forEach((cls) => {
       const pkg = cls.package || "default";
@@ -159,7 +151,6 @@ export class VisualizationAgent implements Agent {
       summary += `- ${pkg}: ${classes.length} classes\n`;
     });
 
-    // Add Spring components
     const springComponents = structure.classes.filter((cls) =>
       cls.annotations.some(
         (ann) =>
@@ -186,7 +177,6 @@ export class VisualizationAgent implements Agent {
       });
     }
 
-    // Add relationships
     summary += `\nKey Relationships:\n`;
     const relationshipCounts = structure.relationships.reduce((acc, rel) => {
       acc[rel.type] = (acc[rel.type] || 0) + 1;
@@ -208,7 +198,6 @@ export class VisualizationAgent implements Agent {
     try {
       const model = this.initializeModel();
 
-      // Create the prompt directly without template variables to avoid LangChain parsing issues
       const promptText = `Generate a Mermaid class relationship diagram for this Java class and its related classes.
 Focus on Spring-specific relationships and dependencies.
 
@@ -247,15 +236,12 @@ classDiagram
     UserController --> UserService : @Autowired
 \`\`\``;
 
-      // Use the model directly without PromptTemplate to avoid variable parsing
       const result = await model.invoke(promptText);
 
-      // Extract the content from the result
       return typeof result.content === "string"
         ? result.content
         : result.toString();
     } catch (error) {
-      // Return a basic fallback diagram if generation fails
       return this.generateFallbackClassDiagram(targetClass, relatedClasses);
     }
   }
@@ -264,14 +250,12 @@ classDiagram
     targetClass: any,
     relatedClasses: any[]
   ): string {
-    // Deduplicate related classes by name
     const uniqueRelatedClasses = relatedClasses.filter((cls, index, self) =>
       index === self.findIndex(c => c.name === cls.name) && cls.name !== targetClass.name
     ).slice(0, 5); // Limit to 5 related classes
     
     let diagram = "```mermaid\nclassDiagram\n";
 
-    // Add target class
     const targetClassName = targetClass.name.replace(/[^a-zA-Z0-9_]/g, '_');
     diagram += `    class ${targetClassName} {\n`;
     if (targetClass.springPatterns && targetClass.springPatterns.length > 0) {
@@ -281,14 +265,11 @@ classDiagram
       }
     }
     
-    // Add methods
     (targetClass.methods || []).slice(0, 3).forEach((method: any) => {
       const methodName = String(method.name || 'method').replace(/[^a-zA-Z0-9_]/g, '_');
       diagram += `        +${methodName}()\n`;
     });
     diagram += "    }\n";
-
-    // Add related classes
     uniqueRelatedClasses.forEach((relatedClass: any) => {
       const relatedClassName = relatedClass.name.replace(/[^a-zA-Z0-9_]/g, '_');
       diagram += `    class ${relatedClassName} {\n`;
@@ -303,7 +284,6 @@ classDiagram
       }
       diagram += "        +method()\n    }\n";
 
-      // Add relationship, avoiding self-references
       if (relatedClassName !== targetClassName) {
         diagram += `    ${targetClassName} --> ${relatedClassName}\n`;
       }
@@ -318,13 +298,11 @@ classDiagram
     userQuery?: string
   ): Promise<any> {
     try {
-      // Generate both text description and structured data for frontend
       const textDescription = await this.generateArchitectureDescription(
         structure,
         userQuery
       );
 
-      // Create structured data that the frontend expects
       const visualizationData = this.prepareVisualizationData(structure);
 
       return {
@@ -344,7 +322,6 @@ classDiagram
   }
 
   private prepareVisualizationData(structure: ProjectStructure) {
-    // This matches the format expected by the frontend renderVisualization function
     const layers: {
       controllers: any[];
       services: any[];
@@ -359,7 +336,6 @@ classDiagram
       components: [],
     };
 
-    // Categorize classes by Spring patterns
     structure.classes.forEach((cls) => {
       const springPatterns = cls.springPatterns || [];
       const hasController = springPatterns.some(
@@ -388,7 +364,6 @@ classDiagram
       } else if (hasComponent) {
         layers.components.push(classInfo);
       } else {
-        // Check for entity-like classes (classes with many fields, few methods)
         if (
           cls.fields &&
           cls.methods &&
@@ -401,7 +376,6 @@ classDiagram
       }
     });
 
-    // Calculate statistics
     const stats = {
       totalClasses: structure.classes.length,
       controllers: layers.controllers.length,
@@ -420,7 +394,6 @@ classDiagram
   }
 
   private createFallbackVisualizationData(structure: ProjectStructure) {
-    // Create basic visualization data when enhanced analysis fails
     const layers: {
       controllers: any[];
       services: any[];
@@ -435,7 +408,6 @@ classDiagram
       components: [],
     };
 
-    // Basic categorization based on class names and annotations
     structure.classes.forEach((cls) => {
       const className = cls.name.toLowerCase();
       const annotations = cls.annotations?.join(" ").toLowerCase() || "";
@@ -491,17 +463,14 @@ classDiagram
     structure: ProjectStructure
   ): Promise<any> {
     try {
-      // Check if structure is provided
       if (!structure) {
         throw new Error('Project structure is not available. Please analyze the project first.');
       }
 
-      // Check if classes exist
       if (!structure.classes || structure.classes.length === 0) {
         throw new Error('No classes found in the project structure.');
       }
 
-      // Filter classes based on scope
       let filteredClasses = structure.classes;
       // if (scope === 'module' && module) {
       //   filteredClasses = structure.classes.filter(cls => cls.package === module);
@@ -510,7 +479,6 @@ classDiagram
       //   }
       // }
 
-      // Generate diagram based on type
       let diagramContent = '';
       let title = '';
       let stats = '';
@@ -581,7 +549,6 @@ classDiagram
     
     console.log('Generating component diagram for classes:', classes.length);
     
-    // Group classes by Spring patterns with fallback to naming conventions
     const controllers = classes.filter(cls => 
       cls.springPatterns?.some((p: any) => p.type === 'CONTROLLER' || p.type === 'REST_CONTROLLER') ||
       cls.name.toLowerCase().includes('controller')
@@ -606,11 +573,9 @@ classDiagram
 
     let mermaidContent = '```mermaid\ngraph TD\n';
     
-    // If no components found, create a simple diagram with all classes
     if (controllers.length === 0 && services.length === 0 && repositories.length === 0) {
       console.log('No Spring components found, creating generic component diagram');
       
-      // Use naming conventions as fallback
       const fallbackControllers = classes.filter(cls => cls.name.toLowerCase().includes('controller'));
       const fallbackServices = classes.filter(cls => cls.name.toLowerCase().includes('service'));
       const fallbackRepositories = classes.filter(cls => 
@@ -618,13 +583,11 @@ classDiagram
         cls.name.toLowerCase().includes('dao')
       );
       
-      // Add all classes as generic components if still no matches
       if (fallbackControllers.length === 0 && fallbackServices.length === 0 && fallbackRepositories.length === 0) {
         classes.slice(0, 10).forEach((cls, i) => {
           mermaidContent += `    C${i}[${cls.name}]\n`;
         });
       } else {
-        // Add fallback components
         fallbackControllers.forEach((cls, i) => {
           mermaidContent += `    CTRL${i}[${cls.name}]\n`;
         });
@@ -649,38 +612,30 @@ classDiagram
       };
     }
     
-    // Create maps for easier lookup
     const classMap = new Map<string, any>();
     classes.forEach(cls => {
       classMap.set(cls.name, cls);
-      // Also map simplified names
       const simpleName = cls.name.split('.').pop() || cls.name;
       classMap.set(simpleName, cls);
     });
     
-    // Add controllers
     controllers.forEach((ctrl, i) => {
       mermaidContent += `    C${i}[${ctrl.name}]\n`;
     });
     
-    // Add services
     services.forEach((svc, i) => {
       mermaidContent += `    S${i}[${svc.name}]\n`;
     });
     
-    // Add repositories
     repositories.forEach((repo, i) => {
       mermaidContent += `    R${i}[${repo.name}]\n`;
     });
     
-    // Add more detailed relationships based on actual dependencies
-    // Controller --> Service relationships
+
     controllers.forEach((ctrl, i) => {
       if (ctrl.dependencies) {
         ctrl.dependencies.forEach((dep: any) => {
-          // Find matching service
           services.forEach((svc, j) => {
-            // Check if this dependency matches the service
             const depStr = String(dep);
             if (depStr.includes(svc.name) || 
                 svc.name.includes(depStr) || 
@@ -693,13 +648,10 @@ classDiagram
       }
     });
     
-    // Service --> Repository relationships
     services.forEach((svc, i) => {
       if (svc.dependencies) {
         svc.dependencies.forEach((dep: any) => {
-          // Find matching repository
           repositories.forEach((repo, j) => {
-            // Check if this dependency matches the repository
             const depStr = String(dep);
             if (depStr.includes(repo.name) || 
                 repo.name.includes(depStr) || 
@@ -712,7 +664,6 @@ classDiagram
       }
     });
     
-    // Add relationships between services if they depend on each other
     services.forEach((svc1, i) => {
       if (svc1.dependencies) {
         svc1.dependencies.forEach((dep: any) => {
@@ -771,15 +722,12 @@ classDiagram
     //const scopeText = scope === 'module' ? ` (${module})` : '';
     const title = `Class Diagram`;
   
-    // Start a mermaid fenced code block (```)
     let mermaidContent = '```mermaid\nclassDiagram\n';
   
-    // Deduplicate by class name, keep first occurrence; limit to 15 for better visibility
     const uniqueClasses = classes.filter((cls, index, self) =>
       index === self.findIndex(c => c.name === cls.name)
     ).slice(0, 15);
   
-    // Helper: sanitize identifier for mermaid (only word chars and underscores)
     const makeSanitizedIdGenerator = () => {
       const used = new Set<string>();
       return (name: string) => {
@@ -789,7 +737,6 @@ classDiagram
           .replace(/_+/g, '_')          // collapse multiple underscores
           .replace(/^_+|_+$/g, '');     // trim leading/trailing underscores
         if (!id || /^\d/.test(id)) id = '_' + id;
-        // Ensure non-empty
         if (!id) id = 'Class';
         let base = id, i = 1;
         while (used.has(id)) {
@@ -801,7 +748,6 @@ classDiagram
     };
     const genId = makeSanitizedIdGenerator();
   
-    // Helper: simplify type string: drop package prefixes and generics
     const simplifyType = (t: any) => {
       if (!t) return 'Object';
       let s = String(t);
@@ -810,23 +756,18 @@ classDiagram
       return parts[parts.length - 1] || s;
     };
   
-    // Map originalName -> sanitizedId
     const idMap = new Map<string, string>();
     uniqueClasses.forEach(c => idMap.set(c.name, genId(c.name)));
   
-    // Group classes (controllers/services/repos/entities/others) with improved detection
     const controllers = uniqueClasses.filter(cls => {
-      // Check for Spring annotations first
       const hasSpringControllerAnnotation = cls.springPatterns?.some((p: any) => 
         p.type === 'CONTROLLER' || 
         p.type === 'REST_CONTROLLER' ||
         String(p.type).toUpperCase().includes('CONTROLLER')
       );
       
-      // Check for naming conventions
       const hasControllerName = cls.name.toLowerCase().includes('controller');
       
-      // Check package names
       const isInControllerPackage = cls.package && (
         cls.package.toLowerCase().includes('controller') ||
         cls.package.toLowerCase().includes('web') ||
@@ -837,19 +778,15 @@ classDiagram
     });
     
     const services = uniqueClasses.filter(cls => {
-      // Check for Spring annotations first
       const hasSpringServiceAnnotation = cls.springPatterns?.some((p: any) => 
         p.type === 'SERVICE' ||
         String(p.type).toUpperCase().includes('SERVICE')
       );
       
-      // Check for naming conventions
       const hasServiceName = cls.name.toLowerCase().includes('service');
       
-      // Check for implementation classes
       const isServiceImpl = cls.name.toLowerCase().includes('serviceimpl');
       
-      // Check package names
       const isInServicePackage = cls.package && (
         cls.package.toLowerCase().includes('service') ||
         cls.package.toLowerCase().includes('business') ||
@@ -860,7 +797,6 @@ classDiagram
     });
     
     const repositories = uniqueClasses.filter(cls => {
-      // Check for Spring annotations first
       const hasSpringRepositoryAnnotation = cls.springPatterns?.some((p: any) => 
         p.type === 'REPOSITORY' ||
         p.type === 'DAO' ||
@@ -868,12 +804,10 @@ classDiagram
         String(p.type).toUpperCase().includes('DAO')
       );
       
-      // Check for naming conventions
       const hasRepositoryName = cls.name.toLowerCase().includes('repository') || 
                                cls.name.toLowerCase().includes('dao') ||
                                cls.name.toLowerCase().includes('repo');
       
-      // Check package names
       const isInRepositoryPackage = cls.package && (
         cls.package.toLowerCase().includes('repository') ||
         cls.package.toLowerCase().includes('dao') ||
@@ -885,25 +819,21 @@ classDiagram
     });
     
     const entities = uniqueClasses.filter(cls => {
-      // Check for Spring annotations first
       const hasEntityAnnotation = cls.springPatterns?.some((p: any) => 
         p.type === 'ENTITY' ||
         String(p.type).toUpperCase().includes('ENTITY')
       );
       
-      // JPA/Hibernate annotations
       const hasJpaAnnotation = cls.annotations?.some((ann: string) => 
         ann.includes('@Entity') ||
         ann.includes('@Table')
       );
       
-      // Check for naming conventions
       const hasEntityName = cls.name.toLowerCase().includes('entity') ||
                            cls.name.toLowerCase().includes('model') ||
                            cls.name.toLowerCase().includes('dto') ||
                            cls.name.toLowerCase().includes('vo');
       
-      // Check package names
       const isInEntityPackage = cls.package && (
         cls.package.toLowerCase().includes('entity') ||
         cls.package.toLowerCase().includes('model') ||
@@ -921,7 +851,6 @@ classDiagram
       !entities.includes(cls)
     );
   
-    // Order to render: controllers -> services -> repos -> entities -> others
     const ordered = [...controllers, ...services, ...repositories, ...entities, ...others];
   
     // Emit class blocks using sanitized IDs; add original name as a comment inside block
@@ -962,7 +891,6 @@ classDiagram
         mermaidContent += `        -${fname}: ${ftype}\n`;
       });
   
-      // Add up to 8 key methods, prefer non-getter/setter with return types
       const allMethods = cls.methods || [];
       // Prioritize non-getter/setter methods
       const nonGetterSetterMethods = allMethods.filter((m: any) => 
@@ -971,7 +899,6 @@ classDiagram
         !String(m.name).startsWith('is')
       ).slice(0, 8);
       
-      // If we don't have enough non-getter/setter methods, add some getters/setters
       let keyMethods = [...nonGetterSetterMethods];
       if (keyMethods.length < 8) {
         const remainingSlots = 8 - keyMethods.length;
@@ -983,7 +910,6 @@ classDiagram
         keyMethods = [...keyMethods, ...getterSetterMethods];
       }
       
-      // If still not enough, add any methods
       if (keyMethods.length < 8) {
         const remainingSlots = 8 - keyMethods.length;
         const otherMethods = allMethods.filter((m: any) => 
@@ -1010,31 +936,25 @@ classDiagram
       mermaidContent += '    }\n';
     });
   
-    // Build relationships (use sanitized ids)
     const addedRelationships = new Set<string>();
   
-    // Enhanced dependency detection
     uniqueClasses.forEach(cls => {
       const classId = idMap.get(cls.name);
       if (cls.dependencies && classId) {
         cls.dependencies.forEach((dep: any) => {
-          // Find the dependent class in our uniqueClasses
           const depClass = uniqueClasses.find(c => 
             (c.name === dep || 
-            c.name === dep.replace(/.*\./g, '') || // Remove package prefix
+            c.name === dep.replace(/.*\./g, '') || 
             dep.includes(c.name) ||
-            // Handle inner classes
             (c.name.includes('$') && dep.includes(c.name.split('$')[0])) ||
-            // Handle case where dependency is a partial match
             (dep.includes('.') && c.name.endsWith(dep.split('.').pop() || '')) ||
-            // Handle case where both have similar names
             (c.name.toLowerCase().includes(dep.toLowerCase()) || dep.toLowerCase().includes(c.name.toLowerCase()))) &&
             c.name !== cls.name // Avoid self-references
           );
           
           if (depClass) {
             const depId = idMap.get(depClass.name);
-            if (depId && depId !== classId) { // Avoid self-references
+            if (depId && depId !== classId) { 
               const rel = `${classId} --> ${depId}`;
               if (!addedRelationships.has(rel)) {
                 mermaidContent += `    ${rel} : depends on\n`;
@@ -1045,22 +965,20 @@ classDiagram
         });
       }
       
-      // Add field-based dependencies with better matching
       if (cls.fields && classId) {
         cls.fields.forEach((field: any) => {
           const fieldType = simplifyType(field.type);
-          // Look for classes that match this field type with more flexible matching
           const fieldClass = uniqueClasses.find(c => 
             (c.name === fieldType ||
             c.name.endsWith(fieldType) ||
             c.name.includes(fieldType) ||
             fieldType.includes(c.name.split('.').pop() || c.name)) &&
-            c.name !== cls.name // Avoid self-references
+            c.name !== cls.name 
           );
           
           if (fieldClass) {
             const fieldId = idMap.get(fieldClass.name);
-            if (fieldId && fieldId !== classId) { // Avoid self-references
+            if (fieldId && fieldId !== classId) { 
               const rel = `${classId} --> ${fieldId}`;
               if (!addedRelationships.has(rel)) {
                 mermaidContent += `    ${rel} : has ${field.name}\n`;
@@ -1071,24 +989,22 @@ classDiagram
         });
       }
       
-      // Add method parameter-based dependencies with better matching
       if (cls.methods && classId) {
         cls.methods.forEach((method: any) => {
           if (method.parameters) {
             method.parameters.forEach((param: any) => {
               const paramType = simplifyType(param.type);
-              // Look for classes that match this parameter type with more flexible matching
               const paramClass = uniqueClasses.find(c => 
                 (c.name === paramType ||
                 c.name.endsWith(paramType) ||
                 c.name.includes(paramType) ||
                 paramType.includes(c.name.split('.').pop() || c.name)) &&
-                c.name !== cls.name // Avoid self-references
+                c.name !== cls.name 
               );
               
               if (paramClass) {
                 const paramId = idMap.get(paramClass.name);
-                if (paramId && paramId !== classId) { // Avoid self-references
+                if (paramId && paramId !== classId) { 
                   const rel = `${classId} ..> ${paramId}`;
                   if (!addedRelationships.has(rel)) {
                     mermaidContent += `    ${rel} : uses ${param.name}\n`;
@@ -1099,7 +1015,6 @@ classDiagram
             });
           }
           
-          // Add return type dependencies with better matching
           if (method.returnType) {
             const returnType = simplifyType(method.returnType);
             const returnClass = uniqueClasses.find(c => 
@@ -1107,12 +1022,12 @@ classDiagram
               c.name.endsWith(returnType) ||
               c.name.includes(returnType) ||
               returnType.includes(c.name.split('.').pop() || c.name)) &&
-              c.name !== cls.name // Avoid self-references
+              c.name !== cls.name 
             );
             
             if (returnClass) {
               const returnId = idMap.get(returnClass.name);
-              if (returnId && returnId !== classId) { // Avoid self-references
+              if (returnId && returnId !== classId) { 
                 const rel = `${classId} ..> ${returnId}`;
                 if (!addedRelationships.has(rel)) {
                   mermaidContent += `    ${rel} : returns ${method.name}\n`;
@@ -1125,7 +1040,6 @@ classDiagram
       }
     });
   
-    // Controller --> Service with improved matching
     controllers.forEach(controller => {
       const relatedServices = services.filter(service =>
         controller.dependencies?.some((dep: any) => 
@@ -1147,7 +1061,6 @@ classDiagram
       });
     });
   
-    // Service --> Repository with improved matching
     services.forEach(service => {
       const relatedRepos = repositories.filter(repo =>
         service.dependencies?.some((dep: any) => 
@@ -1155,7 +1068,7 @@ classDiagram
           repo.name.includes(String(dep)) ||
           repo.name.toLowerCase().includes(service.name.toLowerCase().replace('service', '')) ||
           service.name.toLowerCase().replace('service', '').includes(repo.name.toLowerCase().replace('repository', '').replace('dao', ''))) &&
-          repo.name !== service.name // Avoid self-references
+          repo.name !== service.name 
         )
       );
       
@@ -1169,7 +1082,6 @@ classDiagram
       });
     });
   
-    // Exception inheritance (if multiple exceptions and a base exception)
     const exceptions = others.filter(cls => cls.name.toLowerCase().includes('exception'));
     if (exceptions.length > 1) {
       const baseException = exceptions.find(ex => /Base|Custom/i.test(ex.name));
@@ -1200,10 +1112,8 @@ classDiagram
   private async generatePackageDiagram(classes: any[]): Promise<any> {
     const title = 'Package Dependencies';
     
-    // Group classes by package
     const packages = [...new Set(classes.map(cls => cls.package).filter(pkg => pkg))];
     
-    // Create a map of package names to their safe identifiers
     const packageIdMap = new Map<string, string>();
     packages.forEach(pkg => {
       const safeId = pkg.replace(/\./g, '_');
@@ -1212,24 +1122,20 @@ classDiagram
     
     let mermaidContent = '```mermaid\ngraph LR\n';
     
-    // Add all packages as nodes
     packages.forEach(pkg => {
       const safeId = packageIdMap.get(pkg)!;
       mermaidContent += `    ${safeId}["${pkg}"]\n`;
     });
     
-    // Create a map of class names to their packages for quick lookup
     const classToPackageMap = new Map<string, string>();
     classes.forEach(cls => {
       if (cls.package) {
         classToPackageMap.set(cls.name, cls.package);
-        // Also map simplified class names (without package)
         const simpleName = cls.name.split('.').pop() || cls.name;
         classToPackageMap.set(simpleName, cls.package);
       }
     });
     
-    // Analyze dependencies between packages
     const packageDependencies = new Set<string>();
     const dependencyCounts = new Map<string, number>();
     
@@ -1240,14 +1146,11 @@ classDiagram
         
         if (sourcePackageId) {
           cls.dependencies.forEach((dep: any) => {
-            // Try to find which package this dependency belongs to
             let targetPackage: string | null = null;
             
-            // Direct match with full class name
             if (classToPackageMap.has(dep)) {
               targetPackage = classToPackageMap.get(dep) || null;
             } 
-            // Try with simplified name
             else {
               const depStr = String(dep);
               const depParts = depStr.split('.');
@@ -1255,7 +1158,6 @@ classDiagram
               if (classToPackageMap.has(simpleDepName)) {
                 targetPackage = classToPackageMap.get(simpleDepName) || null;
               }
-              // Try with the last part of the dependency if it contains $
               else if (depStr.includes('$')) {
                 const innerClassParts = depStr.split('$');
                 const outerClass = innerClassParts[0];
@@ -1266,7 +1168,6 @@ classDiagram
               }
             }
             
-            // If we found the target package and it's different from source
             if (targetPackage && targetPackage !== sourcePackage) {
               const targetPackageId = packageIdMap.get(targetPackage);
               if (targetPackageId) {
@@ -1277,7 +1178,6 @@ classDiagram
                   packageDependencies.add(relationship);
                   dependencyCounts.set(relationshipKey, 1);
                 } else {
-                  // Increment count for this relationship
                   const currentCount = dependencyCounts.get(relationshipKey) || 1;
                   dependencyCounts.set(relationshipKey, currentCount + 1);
                 }
@@ -1288,9 +1188,7 @@ classDiagram
       }
     });
     
-    // Add the discovered package dependencies
     packageDependencies.forEach(rel => {
-      // Only add the actual relationship lines, not the keys
       if (rel.includes('-->') && !rel.includes('->')) {
         mermaidContent += `    ${rel}\n`;
       }

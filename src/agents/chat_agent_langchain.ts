@@ -5,7 +5,6 @@ import { MCPService, AgentMessage } from "./mcp_service";
 import { RAGService } from "../service/rag_service";
 import * as vscode from 'vscode';
 
-// We'll import ChatOpenAI only when needed to avoid early validation
 let ChatOpenAI: any;
 
 export class ChatAgent implements Agent {
@@ -18,11 +17,9 @@ export class ChatAgent implements Agent {
         this.outputParser = new StringOutputParser();
         this.mcpService = mcpService || new MCPService('codedoc-project');
         this.ragService = new RAGService();
-        // We don't initialize the model here to avoid requiring API key during extension activation
     }
 
     private async initializeModel() {
-        // Lazy import to avoid early validation
         if (!ChatOpenAI) {
             const langchainOpenAI = await import("@langchain/openai");
             ChatOpenAI = langchainOpenAI.ChatOpenAI;
@@ -32,7 +29,6 @@ export class ChatAgent implements Agent {
             return this.model;
         }
 
-        // Get configuration
         const config = vscode.workspace.getConfiguration('codedoc');
         const apiKey = config.get<string>('openaiApiKey');
         const modelName = config.get<string>('openaiModel', 'gpt-4');
@@ -59,11 +55,8 @@ export class ChatAgent implements Agent {
         
         console.log('ChatAgent execute called with:', { userInput, projectContext });
         
-        // First, determine what the user wants to do
         const intent = await this.determineIntent(userInput, projectContext);
         console.log('Determined intent:', intent);
-        
-        // Based on intent, route to appropriate agent or handle directly
         switch (intent.action) {
             case 'generateDocumentation':
                 return await this.delegateToDocumentationAgent(userInput, projectContext, intent.details);
@@ -115,7 +108,6 @@ export class ChatAgent implements Agent {
             console.log('LLM Intent Result:', result);
             
             try {
-                // Remove markdown code block formatting if present
                 let cleanResult = result as string;
                 if (cleanResult.startsWith('```json')) {
                     cleanResult = cleanResult.substring(7);
@@ -132,7 +124,6 @@ export class ChatAgent implements Agent {
                 console.log('Parsed Intent Result:', parsedResult);
                 return parsedResult;
             } catch (e) {
-                // If parsing fails, return a default response
                 console.log('Failed to parse LLM result, returning unknown intent');
                 return {
                     action: 'unknown',
@@ -142,9 +133,8 @@ export class ChatAgent implements Agent {
         } catch (error) {
             console.log('Error determining intent:', error);
             if (error instanceof Error && error.message.includes('API key not configured')) {
-                throw error; // Re-throw configuration errors
+                throw error; 
             }
-            // If we can't determine intent due to other errors, default to unknown
             return {
                 action: 'unknown',
                 details: 'Could not determine intent due to an error'
@@ -155,29 +145,24 @@ export class ChatAgent implements Agent {
     private async delegateToDocumentationAgent(userInput: string, projectContext: any, details: string): Promise<any> {
         console.log('delegateToDocumentationAgent called with:', { userInput, projectContext, details });
         
-        // Use RAG to retrieve relevant context
         let context = null;
         if (projectContext && projectContext.projectStructure) {
             context = await this.ragService.retrieveContext(userInput, projectContext.projectStructure);
         }
         
-        // Determine if this is a request for a specific class
         const classMatch = userInput.match(/(?:generate\s+(?:document|documentation)\s+(?:for\s+)?(\w+))|(?:document\s+(?:for\s+)?(\w+))/i);
         console.log('Class match result:', classMatch);
         
         if (classMatch) {
-            // This is a request for class documentation
             const className = classMatch[1] || classMatch[2];
             console.log('Identified class name:', className);
             
-            // Find the class in the project structure
             if (projectContext && projectContext.projectStructure) {
                 console.log('Project structure classes:', projectContext.projectStructure.classes.map((cls: any) => cls.name));
                 const javaClass = projectContext.projectStructure.classes.find((cls: any) => cls.name === className);
                 console.log('Found class:', javaClass);
                 
                 if (javaClass) {
-                    // Find related classes (dependencies)
                     const relatedClasses = projectContext.projectStructure.classes.filter((cls: any) => 
                         javaClass.dependencies.includes(cls.name) || 
                         projectContext.projectStructure.relationships.some((rel: any) => 
@@ -186,7 +171,6 @@ export class ChatAgent implements Agent {
                         )
                     );
                     
-                    // Create MCP message to delegate to Documentation Agent for class documentation
                     const message: AgentMessage = {
                         id: this.generateMessageId(),
                         from: 'ChatAgent',
@@ -203,7 +187,6 @@ export class ChatAgent implements Agent {
                     };
                     
                     try {
-                        // Send message via MCP
                         const response = await this.mcpService.sendMessage(message);
                         console.log('Documentation agent response:', response);
                         
@@ -211,7 +194,7 @@ export class ChatAgent implements Agent {
                             action: 'generateDocumentation',
                             message: `I've generated the documentation for class ${className}.`,
                             details: details,
-                            data: response  // The response is already the documentation content
+                            data: response  
                         };
                     } catch (error) {
                         console.log('Error generating documentation:', error);
@@ -231,8 +214,6 @@ export class ChatAgent implements Agent {
             }
         }
         
-        // Default to project overview documentation
-        // Create MCP message to delegate to Documentation Agent
         const message: AgentMessage = {
             id: this.generateMessageId(),
             from: 'ChatAgent',
@@ -248,7 +229,6 @@ export class ChatAgent implements Agent {
         };
         
         try {
-            // Send message via MCP
             const response = await this.mcpService.sendMessage(message);
             console.log('Documentation agent response (project overview):', response);
             
@@ -256,7 +236,7 @@ export class ChatAgent implements Agent {
                 action: 'generateDocumentation',
                 message: 'I\'ve generated the documentation for you.',
                 details: details,
-                data: response  // The response is already the documentation content
+                data: response  
             };
         } catch (error) {
             console.log('Error generating documentation:', error);
@@ -269,13 +249,11 @@ export class ChatAgent implements Agent {
     }
 
     private async delegateToVisualizationAgent(userInput: string, projectContext: any, details: string): Promise<any> {
-        // Use RAG to retrieve relevant context
         let context = null;
         if (projectContext && projectContext.projectStructure) {
             context = await this.ragService.retrieveContext(userInput, projectContext.projectStructure);
         }
         
-        // Create MCP message to delegate to Visualization Agent
         const message: AgentMessage = {
             id: this.generateMessageId(),
             from: 'ChatAgent',
@@ -291,7 +269,6 @@ export class ChatAgent implements Agent {
         };
         
         try {
-            // Send message via MCP
             const response = await this.mcpService.sendMessage(message);
             
             return {
@@ -313,7 +290,6 @@ export class ChatAgent implements Agent {
         try {
             const model = await this.initializeModel();
             
-            // Use RAG to retrieve relevant context
             let ragContext = null;
             if (context && context.projectStructure) {
                 ragContext = await this.ragService.retrieveContext(question, context.projectStructure);
@@ -355,7 +331,7 @@ export class ChatAgent implements Agent {
             };
         } catch (error) {
             if (error instanceof Error && error.message.includes('API key not configured')) {
-                throw error; // Re-throw configuration errors
+                throw error; 
             }
             return {
                 action: 'error',

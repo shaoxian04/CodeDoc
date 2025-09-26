@@ -27,12 +27,10 @@ import { DocumentationAgent } from './agents/documentation_agent_langchain';
 
 const agent = new DocumentationAgent(apiKey);
 
-// Generate project overview
 const projectResponse = await agent.execute({
     userQuery: 'Generate project overview documentation'
 });
 
-// Generate class documentation
 const classResponse = await agent.execute({
     selectedCode: 'public class MyClass { ... }',
     filePath: 'MyClass.java'
