@@ -68,6 +68,7 @@ export class VisualizationAgent implements Agent {
       case "generateSpecificDiagram":
         return await this.generateSpecificDiagram(
           context.diagramType,
+          context.scope,
           context.module,
           context.projectStructure
         );

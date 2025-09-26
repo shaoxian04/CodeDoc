@@ -159,6 +159,35 @@ class WorkflowOrchestrator {
             };
         }
     }
+    // Handle chat requests through the chat agent
+    async handleChatRequest(userInput, projectContext) {
+        console.log('WorkflowOrchestrator handleChatRequest called with:', { userInput, projectContext });
+        try {
+            const result = await this.visualizationAgent.execute({
+                task: 'generateSpecificDiagram',
+                diagramType: params.diagramType,
+                scope: params.scope,
+                module: params.module,
+                projectStructure: params.projectStructure
+            });
+            return {
+                success: true,
+                data: result
+            };
+        }
+        catch (error) {
+            if (error instanceof Error && error.message.includes('API key not configured')) {
+                return {
+                    success: false,
+                    error: 'OpenAI API key not configured. Please configure it in the settings.'
+                };
+            }
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Failed to generate diagram'
+            };
+        }
+    }
     // // Handle chat requests through the chat agent
     // async handleChatRequest(userInput: string, projectContext: any): Promise<AgentResponse> {
     //     console.log('WorkflowOrchestrator handleChatRequest called with:', { userInput, projectContext });

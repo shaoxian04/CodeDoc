@@ -229,8 +229,8 @@ ${instanceName}.someMethod();`.trim();
     private generateStringValue(paramName: string): string {
         const lowerName = paramName.toLowerCase();
         
-        if (lowerName.includes('name')) return 'Ali';
-        if (lowerName.includes('email')) return 'Ali@example.com';
+        if (lowerName.includes('name')) return 'John Doe';
+        if (lowerName.includes('email')) return 'user@example.com';
         if (lowerName.includes('id')) return '12345';
         if (lowerName.includes('url')) return 'https://example.com';
         if (lowerName.includes('path')) return '/api/users';

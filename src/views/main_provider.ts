@@ -105,7 +105,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
                 }
             }, 500); 
-        }else {
+        } else {
             // Auto-trigger project analysis if no structure is available
             console.log('No project structure available, triggering auto-analysis');
             
@@ -123,9 +123,25 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             }, 1000);
         }
     }
-    public updateVisualization(structure: ProjectStructure): void {
+    public updateVisualization(structure: ProjectStructure) {
         this._projectStructure = structure;
-        if (!this._view?.webview) {
+        if (this._view && this._view.webview) {
+            console.log('Sending visualization data to webview');
+            setTimeout(() => {
+                if (this._view && this._view.webview) {
+                    this._view.webview.postMessage({
+                        type: 'updateVisualization',
+                        data: this._prepareVisualizationData(structure)
+                    });
+                    
+                    // Also update project structure for diagram generator
+                    this._view.webview.postMessage({
+                        type: 'updateProjectStructureForDiagrams',
+                        data: structure
+                    });
+                }
+            }, 300); 
+        } else {
             console.log('Webview not ready, cannot send data');
             return;
         }
@@ -150,77 +166,133 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private async convertToHtml(content: string): Promise<string> {
-        if (!content) return '';
-        
-        const isHtml = content.startsWith('<') || content.includes('<h1') || content.includes('<p>');
-        if (isHtml) return content;
-
-        try {
-            const result = marked(content);
-            return result instanceof Promise ? await result : result;
-        } catch (error) {
-            console.error('Error converting markdown to HTML:', error);
-            return `<pre>${content}</pre>`;
+    public showClassDocumentation(content: string) {
+        if (this._view) {
+            console.log('showClassDocumentation called with content length:', content?.length || 0);
+            console.log('Content preview:', content?.substring(0, 200) + (content && content.length > 200 ? '...' : ''));
+            
+            // Check if content is already HTML
+            const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>'));
+            console.log('Content is HTML:', isHtml);
+            
+            try {
+                if (!isHtml) {
+                    console.log('Converting markdown to HTML');
+                    // Handle both synchronous and asynchronous versions of marked
+                    const result = marked(content);
+                    if (result instanceof Promise) {
+                        result.then(htmlContent => {
+                            console.log('Converted HTML length:', htmlContent?.length || 0);
+                            console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
+                            this._view!.webview.postMessage({
+                                type: 'showExplanation',
+                                text: htmlContent,
+                                markdown: content  
+                            });
+                        }).catch(error => {
+                            console.error('Error converting markdown to HTML:', error);
+                            // Fallback to showing raw content if markdown conversion fails
+                            this._view!.webview.postMessage({
+                                type: 'showExplanation',
+                                text: `<pre>${content || ''}</pre>`,
+                                markdown: content  
+                            });
+                        });
+                    } else {
+                        const htmlContent = result as string;
+                        console.log('Converted HTML length:', htmlContent?.length || 0);
+                        console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
+                        this._view.webview.postMessage({
+                            type: 'showExplanation',
+                            text: htmlContent,
+                            markdown: content  
+                        });
+                    }
+                } else {
+                    console.log('Content is already HTML, using as-is');
+                    this._view.webview.postMessage({
+                        type: 'showExplanation',
+                        text: content,
+                        markdown: content  
+                    });
+                }
+            } catch (error) {
+                console.error('Error converting markdown to HTML:', error);
+                // Fallback to showing raw content if markdown conversion fails
+                this._view.webview.postMessage({
+                    type: 'showExplanation',
+                    text: `<pre>${content || ''}</pre>`,
+                    markdown: content  
+                });
+            }
         }
     }
-
-    private postWebviewMessage(message: WebviewMessage): void {
+private postWebviewMessage(message: WebviewMessage): void {
         if (this._view?.webview) {
             this._view.webview.postMessage(message);
         }
     }
 
-    private postDelayedWebviewMessage(message: WebviewMessage, delay: number = WEBVIEW_UPDATE_DELAY): void {
-        setTimeout(() => this.postWebviewMessage(message), delay);
-    }
-
-    private initializeVisualization(): void {
-        if (!this._projectStructure) {
-            console.log('No project structure available, triggering auto-analysis');
-            this.postDelayedWebviewMessage({ type: WebviewMessageType.AnalysisStarted });
-            setTimeout(() => {
-                vscode.commands.executeCommand('codedoc.visualizeCode');
-            }, WEBVIEW_UPDATE_DELAY);
-            return;
+    public showProjectDocumentation(content: string) {
+        if (this._view) {
+            console.log('showProjectDocumentation called with content length:', content?.length || 0);
+            console.log('Content preview:', content?.substring(0, 200) + (content && content.length > 200 ? '...' : ''));
+            
+            // Check if content is already HTML
+            const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>'));
+            console.log('Content is HTML:', isHtml);
+            
+            try {
+                if (!isHtml) {
+                    console.log('Converting markdown to HTML');
+                    // Handle both synchronous and asynchronous versions of marked
+                    const result = marked(content);
+                    if (result instanceof Promise) {
+                        result.then(htmlContent => {
+                            console.log('Converted HTML length:', htmlContent?.length || 0);
+                            console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
+                            this._view!.webview.postMessage({
+                                type: 'showProjectOverview',
+                                text: htmlContent,
+                                markdown: content  
+                            });
+                        }).catch(error => {
+                            console.error('Error converting markdown to HTML:', error);
+                            // Fallback to showing raw content if markdown conversion fails
+                            this._view!.webview.postMessage({
+                                type: 'showProjectOverview',
+                                text: `<pre>${content || ''}</pre>`,
+                                markdown: content  
+                            });
+                        });
+                    } else {
+                        const htmlContent = result as string;
+                        console.log('Converted HTML length:', htmlContent?.length || 0);
+                        console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
+                        this._view.webview.postMessage({
+                            type: 'showProjectOverview',
+                            text: htmlContent,
+                            markdown: content  
+                        });
+                    }
+                } else {
+                    console.log('Content is already HTML, using as-is');
+                    this._view.webview.postMessage({
+                        type: 'showProjectOverview',
+                        text: content,
+                        markdown: content  
+                    });
+                }
+            } catch (error) {
+                console.error('Error converting markdown to HTML:', error);
+                // Fallback to showing raw content if markdown conversion fails
+                this._view.webview.postMessage({
+                    type: 'showProjectOverview',
+                    text: `<pre>${content || ''}</pre>`,
+                    markdown: content  
+                });
+            }
         }
-
-        console.log('Resending existing visualization data to newly resolved webview');
-        this.postDelayedWebviewMessage({
-            type: WebviewMessageType.UpdateVisualization,
-            data: this._prepareVisualizationData(this._projectStructure)
-        });
-
-        this.postDelayedWebviewMessage({
-            type: WebviewMessageType.UpdateProjectStructureForDiagrams,
-            data: this._projectStructure
-        });
-    }
-
-    public async showClassDocumentation(content: string): Promise<void> {
-        if (!this._view) return;
-
-        console.log('showClassDocumentation called with content length:', content?.length || 0);
-        const htmlContent = await this.convertToHtml(content);
-        
-        this.postWebviewMessage({
-            type: WebviewMessageType.ShowExplanation,
-            text: htmlContent,
-            markdown: content
-        });
-    }
-
-    public async showProjectDocumentation(content: string): Promise<void> {
-        if (!this._view) return;
-
-        console.log('showProjectDocumentation called with content length:', content?.length || 0);
-        const htmlContent = await this.convertToHtml(content);
-        
-        this.postWebviewMessage({
-            type: WebviewMessageType.ShowProjectOverview,
-            text: htmlContent,
-            markdown: content
-        });
     }
 
     public showChatResponse(response: any) {
@@ -323,6 +395,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+
     // private _handleUserMessage(message: string) {
     //     // Send message to backend for processing by the Langchain-based chat agent
     //     if (this._view) {
@@ -378,7 +451,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     private _exportClassDocumentation(content: string) {
         vscode.commands.executeCommand('codedoc.exportClassDocs', content);
     }
-    //TODO: check this visualization function
+
     private _handleDiagramGeneration(message: any) {
         // Check if project structure is available
         if (!this._projectStructure) {
@@ -397,6 +470,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             projectStructure: this._projectStructure
         });
     }
+
     private _handleDiagramExport(diagramData: any) {
         vscode.commands.executeCommand('codedoc.exportDiagram', diagramData);
     }

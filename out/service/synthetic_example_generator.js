@@ -183,9 +183,9 @@ ${instanceName}.someMethod();`.trim();
     generateStringValue(paramName) {
         const lowerName = paramName.toLowerCase();
         if (lowerName.includes('name'))
-            return 'Ali';
+            return 'John Doe';
         if (lowerName.includes('email'))
-            return 'Ali@example.com';
+            return 'user@example.com';
         if (lowerName.includes('id'))
             return '12345';
         if (lowerName.includes('url'))
