@@ -322,32 +322,7 @@ const vscode = acquireVsCodeApi();
             statsPanel.style.display = 'block';
         
 
-        statsGrid.innerHTML = `
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.totalClasses}</div>
-                <div class="stat-label">Classes</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.controllers}</div>
-                <div class="stat-label">Controllers</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.services}</div>
-                <div class="stat-label">Services</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.repositories}</div>
-                <div class="stat-label">Repositories</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.entities}</div>
-                <div class="stat-label">Entities</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">\${data.stats.dependencies}</div>
-                <div class="stat-label">Dependencies</div>
-            </div>
-        \`;
+        statsGrid.innerHTML = '\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.totalClasses + '</div>\\n                <div class=\\"stat-label\\">Classes</div>\\n            </div>\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.controllers + '</div>\\n                <div class=\\"stat-label\\">Controllers</div>\\n            </div>\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.services + '</div>\\n                <div class=\\"stat-label\\">Services</div>\\n            </div>\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.repositories + '</div>\\n                <div class=\\"stat-label\\">Repositories</div>\\n            </div>\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.entities + '</div>\\n                <div class=\\"stat-label\\">Entities</div>\\n            </div>\\n            <div class=\\"stat-item\\">\\n                <div class=\\"stat-number\\">' + data.stats.dependencies + '</div>\\n                <div class=\\"stat-label\\">Dependencies</div>\\n            </div>\\n        ';
         
         visualizationContent.innerHTML = '<div class="architecture-layers-container"></div>';
         const layersContainer = visualizationContent.querySelector('.architecture-layers-container');
@@ -356,22 +331,7 @@ const vscode = acquireVsCodeApi();
         if (data.layers.controllers.length > 0) {
             const controllerLayer = document.createElement('div');
             controllerLayer.className = 'architecture-layer';
-            controllerLayer.innerHTML = \`
-                <div class="layer-header controller">
-                    <span>Controller Layer (\${data.layers.controllers.length})</span>
-                </div>
-                <div class="layer-content">
-                    \${data.layers.controllers.map(cls => \`
-                        <div class="class-card" data-id="\${cls.name}">
-                            <div class="class-name">\${cls.name}</div>
-                            <div class="class-info">\${cls.package}</div>
-                            <div class="class-dependencies">
-                                Dependencies: \${data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length}
-                            </div>
-                        </div>
-                    \`).join('')}
-                </div>
-            \`;
+            controllerLayer.innerHTML = '\\n                <div class=\\"layer-header controller\\">\\n                    <span>Controller Layer (' + data.layers.controllers.length + ')</span>\\n                </div>\\n                <div class=\\"layer-content\\">\\n                    ' + data.layers.controllers.map(cls => '\\n                        <div class=\\"class-card\\" data-id=\\"' + cls.name + '\\">\\n                            <div class=\\"class-name\\">' + cls.name + '</div>\\n                            <div class=\\"class-info\\">' + cls.package + '</div>\\n                            <div class=\\"class-dependencies\\">\\n                                Dependencies: ' + data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length + '\\n                            </div>\\n                        </div>\\n                    ').join('') + '\\n                </div>\\n            ';
             layersContainer.appendChild(controllerLayer);
         }
         
@@ -379,22 +339,7 @@ const vscode = acquireVsCodeApi();
         if (data.layers.services.length > 0) {
             const serviceLayer = document.createElement('div');
             serviceLayer.className = 'architecture-layer';
-            serviceLayer.innerHTML = \`
-                <div class="layer-header service">
-                    <span>Service Layer (\${data.layers.services.length})</span>
-                </div>
-                <div class="layer-content">
-                    \${data.layers.services.map(cls => \`
-                        <div class="class-card" data-id="\${cls.name}">
-                            <div class="class-name">\${cls.name}</div>
-                            <div class="class-info">\${cls.package}</div>
-                            <div class="class-dependencies">
-                                Dependencies: \${data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length}
-                            </div>
-                        </div>
-                    \`).join('')}
-                </div>
-            \`;
+            serviceLayer.innerHTML = '\\n                <div class=\\"layer-header service\\">\\n                    <span>Service Layer (' + data.layers.services.length + ')</span>\\n                </div>\\n                <div class=\\"layer-content\\">\\n                    ' + data.layers.services.map(cls => '\\n                        <div class=\\"class-card\\" data-id=\\"' + cls.name + '\\">\\n                            <div class=\\"class-name\\">' + cls.name + '</div>\\n                            <div class=\\"class-info\\">' + cls.package + '</div>\\n                            <div class=\\"class-dependencies\\">\\n                                Dependencies: ' + data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length + '\\n                            </div>\\n                        </div>\\n                    ').join('') + '\\n                </div>\\n            ';
             layersContainer.appendChild(serviceLayer);
         }
         
@@ -402,22 +347,7 @@ const vscode = acquireVsCodeApi();
         if (data.layers.repositories.length > 0) {
             const repositoryLayer = document.createElement('div');
             repositoryLayer.className = 'architecture-layer';
-            repositoryLayer.innerHTML = \`
-                <div class="layer-header repository">
-                    <span>Repository Layer (\${data.layers.repositories.length})</span>
-                </div>
-                <div class="layer-content">
-                    \${data.layers.repositories.map(cls => \`
-                        <div class="class-card" data-id="\${cls.name}">
-                            <div class="class-name">\${cls.name}</div>
-                            <div class="class-info">\${cls.package}</div>
-                            <div class="class-dependencies">
-                                Dependencies: \${data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length}
-                            </div>
-                        </div>
-                    \`).join('')}
-                </div>
-            \`;
+            repositoryLayer.innerHTML = '\\n                <div class=\\"layer-header repository\\">\\n                    <span>Repository Layer (' + data.layers.repositories.length + ')</span>\\n                </div>\\n                <div class=\\"layer-content\\">\\n                    ' + data.layers.repositories.map(cls => '\\n                        <div class=\\"class-card\\" data-id=\\"' + cls.name + '\\">\\n                            <div class=\\"class-name\\">' + cls.name + '</div>\\n                            <div class=\\"class-info\\">' + cls.package + '</div>\\n                            <div class=\\"class-dependencies\\">\\n                                Dependencies: ' + data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length + '\\n                            </div>\\n                        </div>\\n                    ').join('') + '\\n                </div>\\n            ';
             layersContainer.appendChild(repositoryLayer);
         }
         
@@ -425,22 +355,7 @@ const vscode = acquireVsCodeApi();
         if (data.layers.entities.length > 0) {
             const entityLayer = document.createElement('div');
             entityLayer.className = 'architecture-layer';
-            entityLayer.innerHTML = \`
-                <div class="layer-header entity">
-                    <span>Entity Layer (\${data.layers.entities.length})</span>
-                </div>
-                <div class="layer-content">
-                    \${data.layers.entities.map(cls => \`
-                        <div class="class-card" data-id="\${cls.name}">
-                            <div class="class-name">\${cls.name}</div>
-                            <div class="class-info">\${cls.package}</div>
-                            <div class="class-dependencies">
-                                Dependencies: \${data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length}
-                            </div>
-                        </div>
-                    \`).join('')}
-                </div>
-            \`;
+            entityLayer.innerHTML = '\\n                <div class=\\"layer-header entity\\">\\n                    <span>Entity Layer (' + data.layers.entities.length + ')</span>\\n                </div>\\n                <div class=\\"layer-content\\">\\n                    ' + data.layers.entities.map(cls => '\\n                        <div class=\\"class-card\\" data-id=\\"' + cls.name + '\\">\\n                            <div class=\\"class-name\\">' + cls.name + '</div>\\n                            <div class=\\"class-info\\">' + cls.package + '</div>\\n                            <div class=\\"class-dependencies\\">\\n                                Dependencies: ' + data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length + '\\n                            </div>\\n                        </div>\\n                    ').join('') + '\\n                </div>\\n            ';
             layersContainer.appendChild(entityLayer);
         }
         
@@ -448,22 +363,7 @@ const vscode = acquireVsCodeApi();
         if (data.layers.others.length > 0) {
             const otherLayer = document.createElement('div');
             otherLayer.className = 'architecture-layer';
-            otherLayer.innerHTML = \`
-                <div class="layer-header">
-                    <span>Other Components (\${data.layers.others.length})</span>
-                </div>
-                <div class="layer-content">
-                    \${data.layers.others.map(cls => \`
-                        <div class="class-card" data-id="\${cls.name}">
-                            <div class="class-name">\${cls.name}</div>
-                            <div class="class-info">\${cls.package}</div>
-                            <div class="class-dependencies">
-                                Dependencies: \${data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length}
-                            </div>
-                        </div>
-                    \`).join('')}
-                </div>
-            \`;
+            otherLayer.innerHTML = '\\n                <div class=\\"layer-header\\">\\n                    <span>Other Components (' + data.layers.others.length + ')</span>\\n                </div>\\n                <div class=\\"layer-content\\">\\n                    ' + data.layers.others.map(cls => '\\n                        <div class=\\"class-card\\" data-id=\\"' + cls.name + '\\">\\n                            <div class=\\"class-name\\">' + cls.name + '</div>\\n                            <div class=\\"class-info\\">' + cls.package + '</div>\\n                            <div class=\\"class-dependencies\\">\\n                                Dependencies: ' + data.dependencies.filter(d => d.from === cls.name || d.to === cls.name).length + '\\n                            </div>\\n                        </div>\\n                    ').join('') + '\\n                </div>\\n            ';
             layersContainer.appendChild(otherLayer);
         }
         
@@ -497,35 +397,65 @@ const vscode = acquireVsCodeApi();
         document.getElementById('export-class-doc-btn').addEventListener('click', exportClassDocumentation);
         document.getElementById('back-to-explanation-btn').addEventListener('click', showExplanationOptions);
 
+        // Initialize diagram generator
+        initializeDiagramGenerator();
+                    
+        // Show analysis status if no project structure is available
+        if (!currentProjectStructure) {
+            showAnalysisStatus();
+        }
+                    
+        // Test mermaid rendering
+        //testMermaidRendering();
+
         switchTab('overview');
     });
 
     window.addEventListener('message', event => {
-        const message = event.data;
-        switch (message.type) {
-            case 'updateVisualization':
-                renderVisualization(message.data);
-                break;
-            case 'showExplanation':
-                showClassDocumentation(message.text);
-                if (message.markdown) {
-                    document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
-                }
-                switchTab('explanation');
-                break;
-            case 'showProjectOverview':
-                showProjectDocumentation(message.text);
-                if (message.markdown) {
-                    document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
-                }
-                switchTab('explanation');
-                break;
-            case 'botResponse':
-                showBotResponse(message.text);
-                break;
-            case 'refreshing':
-                break;
-        }
+                    const message = event.data;
+                    switch (message.type) {
+                        case 'updateVisualization':
+                            renderVisualization(message.data);
+                            break;
+                        case 'showExplanation':
+                            showClassDocumentation(message.text);
+                            if (message.markdown) {
+                                document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
+                            }
+                            switchTab('explanation');
+                            break;
+                        case 'showProjectOverview':
+                            showProjectDocumentation(message.text);
+                            if (message.markdown) {
+                                document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
+                            }
+                            switchTab('explanation');
+                            break;
+                        case 'diagramGenerated':
+                            showGeneratedDiagram(message.data);
+                            break;
+                        case 'diagramError':
+                            showDiagramError(message.error);
+                            break;
+                        case 'updateProjectStructureForDiagrams':
+                            updateProjectStructureForDiagrams(message.data);
+                            hideAnalysisStatus();
+                            break;
+                        case 'botResponse':
+                            showBotResponse(message.text);
+                            break;
+                        case 'analysisStarted':
+                            showAnalysisStatus();
+                            break;
+                        case 'refreshing':
+                            break;
+                        case 'exportDiagramAsImage':
+                            this._handleDiagramExportAsImage(message.diagramData);
+                            break;
+                        case 'openDiagramAsImage':
+                            this._handleDiagramOpenAsImage(message.diagramData);
+                            break;
+                    }
     });
 
     function showBotResponse(text) {
@@ -544,50 +474,432 @@ const vscode = acquireVsCodeApi();
         // Clear input
         document.getElementById('chatInput').value = '';
     }
+    
+    // ------------------------------------------------------------
+    // Diagram Generator Functions
+    let currentProjectStructure = null;
+    let currentDiagramData = null;
 
-    // Add chat functionality
-    document.addEventListener('DOMContentLoaded', () => {
-        const chatInput = document.getElementById('chatInput');
-        const sendButton = document.getElementById('sendButton');
+    function initializeDiagramGenerator() {
+                    //const scopeRadios = document.querySelectorAll('input[name="scope"]');
+                    //const moduleSelector = document.getElementById('moduleSelector');
+                    const generateBtn = document.getElementById('generateDiagramBtn');
+                    const exportBtn = document.getElementById('exportDiagramBtn');
+                    const copyBtn = document.getElementById('copyDiagramBtn');
+                    const previewBtn = document.getElementById('previewInVSCodeBtn');
+                    const saveBtn = document.getElementById('saveToDocs');
+                    const exportAsImageBtn = document.getElementById('exportAsImageBtn');
+                    const openAsImageBtn = document.getElementById('openAsImageBtn');
+                    
+                    // Handle scope change
+                    // scopeRadios.forEach(radio => {
+                    //     radio.addEventListener('change', function() {
+                    //         if (this.value === 'module') {
+                    //             moduleSelector.style.display = 'block';
+                    //             populateModuleSelector();
+                    //         } else {
+                    //             moduleSelector.style.display = 'none';
+                    //         }
+                    //     });
+                    // });
+                    
+                    // Generate diagram button
+                    generateBtn.addEventListener('click', generateDiagram);
+                    
+                    // Export buttons
+                    exportBtn.addEventListener('click', exportDiagram);
+                    copyBtn.addEventListener('click', copyDiagram);
+                    previewBtn.addEventListener('click', previewInVSCode);
+                    exportAsImageBtn.addEventListener('click', exportDiagramAsImage);
+                    openAsImageBtn.addEventListener('click', openDiagramAsImage);
+                    
+                    // Test button
+                    //document.getElementById('testMermaidBtn').addEventListener('click', testMermaidManually);
+                    saveBtn.addEventListener('click', saveToDocs);
+                }
+        // function populateModuleSelector() {
+        //             const moduleSelect = document.getElementById('moduleSelect');
+        //             moduleSelect.innerHTML = '<option value="">Select a package...</option>';
+                    
+        //             if (currentProjectStructure && currentProjectStructure.classes) {
+        //                 const packages = [...new Set(currentProjectStructure.classes.map(cls => cls.package).filter(pkg => pkg))];
+        //                 packages.sort().forEach(pkg => {
+        //                     const option = document.createElement('option');
+        //                     option.value = pkg;
+        //                     option.textContent = pkg;
+        //                     moduleSelect.appendChild(option);
+        //                 });
+        //             }
+        // }
+        
+        function generateDiagram() {
+                    const diagramType = document.getElementById('diagramType').value;
+                    //const scope = document.querySelector('input[name="scope"]:checked').value;
+                    const selectedModule = document.getElementById('moduleSelect').value;
+                    
+                    // if (scope === 'module' && !selectedModule) {
+                    //     alert('Please select a package/module');
+                    //     return;
+                    // }
+                    
+                    // Check if project structure is available
+                    if (!currentProjectStructure) {
+                        showDiagramError('Project structure not available. Please analyze the project first by switching to the Overview tab and clicking "Refresh Visualization".');
+                        return;
+                    }
+                    
+                    // Show loading
+                    document.getElementById('diagramLoading').style.display = 'block';
+                    document.getElementById('diagramResult').style.display = 'none';
+                    
+                    // Send request to backend
+                    vscode.postMessage({
+                        type: 'generateDiagram',
+                        diagramType: diagramType,
+                        // scope: scope,
+                        module: selectedModule
+                    });
+                }
+                // function showGeneratedDiagram(diagramData) {
+                //     console.log('showGeneratedDiagram called with:', diagramData);
+                //     console.log('Raw content:', diagramData.rawContent);
+                //     console.log('Content:', diagramData.content);
+                    
+                //     const resultDiv = document.getElementById('diagramResult');
+                //     const contentDiv = document.getElementById('diagramContent');
+                //     const titleElement = document.getElementById('diagramTitle');
+                //     const statsElement = document.getElementById('diagramStats');
+                //     const loadingDiv = document.getElementById('diagramLoading');
+                    
+                //     // Hide loading
+                //     loadingDiv.style.display = 'none';
+                    
+                //     // Store diagram data
+                //     currentDiagramData = diagramData;
+                    
+                //     // Update title
+                //     titleElement.textContent = diagramData.title || 'Generated Diagram';
+                    
+                //     // Show diagram content as before
+                //     if (diagramData.content) {
+                //         try {
+                //             const htmlContent = marked(diagramData.content);
+                //             console.log('HTML content:', htmlContent);
+                //             contentDiv.innerHTML = htmlContent;
+                            
+                //             // Process Mermaid diagrams after a short delay
+                //             setTimeout(() => {
+                //                 processMermaidDiagrams(contentDiv);
+                //             }, 200);
+                //         } catch (error) {
+                //             console.error('Error converting diagram content to HTML:', error);
+                //             contentDiv.innerHTML = diagramData.content;
+                //         }
+                //     }
+                    
+                //     // Update stats
+                //     statsElement.textContent = diagramData.stats || '';
+                    
+                //     // Enable export buttons
+                //     document.getElementById('exportDiagramBtn').disabled = false;
+                //     document.getElementById('copyDiagramBtn').disabled = false;
+                    
+                //     // Show result
+                //     resultDiv.style.display = 'block';
+                    
+                //     // Scroll to result
+                //     resultDiv.scrollIntoView({ behavior: 'smooth' });
+                // }
 
-        // Auto-resize textarea
-        chatInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
-        });
+                function showGeneratedDiagram(diagramData) {
+                    console.log('showGeneratedDiagram called with:', diagramData);
+                    console.log('Raw content:', diagramData.rawContent);
+                    console.log('Content:', diagramData.content);
 
-        // Send message on button click
-        sendButton.addEventListener('click', () => {
-            const message = chatInput.value.trim();
-            if (message) {
-                // Add user message to chat
-                const chatMessages = document.getElementById('chatMessages');
-                const placeholder = chatMessages.querySelector('.placeholder');
-                if (placeholder) {
-                    placeholder.remove();
+                    const resultDiv = document.getElementById('diagramResult');
+                    const contentDiv = document.getElementById('diagramContent');
+                    const titleElement = document.getElementById('diagramTitle');
+                    const statsElement = document.getElementById('diagramStats');
+                    const loadingDiv = document.getElementById('diagramLoading');
+
+                    // Hide loading
+                    loadingDiv.style.display = 'none';
+
+                    // Store diagram data
+                    console.log('Setting currentDiagramData:', diagramData);
+                    currentDiagramData = diagramData;
+
+                    // Update title
+                    titleElement.textContent = diagramData.title || 'Generated Diagram';
+
+                    // Only call marked() if content is Markdown, not HTML
+                    let htmlContent;
+                    const isHtml = diagramData.content && (
+                        diagramData.content.startsWith('<') ||
+                        diagramData.content.includes('<h1') ||
+                        diagramData.content.includes('<div')
+                    );
+                    if (isHtml) {
+                        htmlContent = diagramData.content;
+                    } else {
+                        htmlContent = window.marked(diagramData.content);
+                    }
+                    contentDiv.innerHTML = htmlContent;
+
+                    // Process Mermaid diagrams after a short delay
+                    setTimeout(() => {
+                        processMermaidDiagrams(contentDiv);
+                    }, 200);
+
+                    // Update stats
+                    statsElement.textContent = diagramData.stats || '';
+
+                    // Enable export buttons
+                    document.getElementById('exportDiagramBtn').disabled = false;
+                    document.getElementById('copyDiagramBtn').disabled = false;
+
+                    // Show result
+                    resultDiv.style.display = 'block';
+
+                    // Scroll to result
+                    resultDiv.scrollIntoView({ behavior: 'smooth' });
+                }
+                function exportDiagram() {
+                    if (currentDiagramData) {
+                        vscode.postMessage({
+                            type: 'exportDiagram',
+                            diagramData: currentDiagramData
+                        });
+                    }
+                }
+                
+                function exportDiagramAsImage() {
+                    console.log('exportDiagramAsImage button clicked');
+                    if (currentDiagramData) {
+                        console.log('Sending exportDiagramAsImage message with data:', currentDiagramData);
+                        vscode.postMessage({
+                            type: 'exportDiagramAsImage',
+                            diagramData: currentDiagramData
+                        });
+                    } else {
+                        console.log('No currentDiagramData available for export');
+                    }
+                }
+                
+                function openDiagramAsImage() {
+                    console.log('openDiagramAsImage button clicked');
+                    if (currentDiagramData) {
+                        console.log('Sending openDiagramAsImage message with data:', currentDiagramData);
+                        vscode.postMessage({
+                            type: 'openDiagramAsImage',
+                            diagramData: currentDiagramData
+                        });
+                    } else {
+                        console.log('No currentDiagramData available for opening');
+                    }
+                }
+                
+                function copyDiagram() {
+                    console.log('copyDiagram called, currentDiagramData:', currentDiagramData);
+                    if (currentDiagramData && currentDiagramData.rawContent) {
+                        console.log('Copying rawContent:', currentDiagramData.rawContent);
+                        navigator.clipboard.writeText(currentDiagramData.rawContent).then(() => {
+                            // Show temporary success message
+                            const copyBtn = document.getElementById('copyDiagramBtn');
+                            const originalText = copyBtn.textContent;
+                            copyBtn.textContent = '✅ Copied!';
+                            setTimeout(() => {
+                                copyBtn.textContent = originalText;
+                            }, 2000);
+                        }).catch(error => {
+                            console.error('Failed to copy to clipboard:', error);
+                        });
+                    } else {
+                        console.error('No diagram data or rawContent available');
+                    }
+                }
+                
+                function previewInVSCode() {
+                    if (currentDiagramData) {
+                        vscode.postMessage({
+                            type: 'previewDiagram',
+                            diagramData: currentDiagramData
+                        });
+                    }
+                }
+                
+                function saveToDocs() {
+                    if (currentDiagramData) {
+                        vscode.postMessage({
+                            type: 'saveDiagramToDocs',
+                            diagramData: currentDiagramData
+                        });
+                    }
+                }
+                function showDiagramError(errorMessage) {
+                    const resultDiv = document.getElementById('diagramResult');
+                    const loadingDiv = document.getElementById('diagramLoading');
+                    const titleElement = document.getElementById('diagramTitle');
+                    const contentDiv = document.getElementById('diagramContent');
+                    const statsElement = document.getElementById('diagramStats');
+                    
+                    // Hide loading
+                    loadingDiv.style.display = 'none';
+                    
+                    // Clear diagram data
+                    currentDiagramData = null;
+                    
+                    // Update title
+                    titleElement.textContent = 'Class Diagram (Error)';
+                    
+                    // Show error message
+                    contentDiv.innerHTML = '<div class="error-message" style="color: #f48771; padding: 20px; text-align: center; border: 1px solid #f48771; border-radius: 4px; background-color: rgba(244, 135, 113, 0.1);">' +
+                        '<h4>Failed to generate diagram</h4>' +
+                        '<p>' + errorMessage + '</p>' +
+                        '</div>';
+                    
+                    // Update stats
+                    statsElement.textContent = 'Generation failed';
+                    
+                    // Disable export buttons
+                    document.getElementById('exportDiagramBtn').disabled = true;
+                    document.getElementById('copyDiagramBtn').disabled = true;
+                    
+                    // Show result
+                    resultDiv.style.display = 'block';
+                    
+                    // Scroll to result
+                    resultDiv.scrollIntoView({ behavior: 'smooth' });
+                }
+                function updateProjectStructureForDiagrams(structure) {
+                    currentProjectStructure = structure;
+                //    populateModuleSelector();
                 }
 
-                const userMessageDiv = document.createElement('div');
-                userMessageDiv.className = 'message user-message';
-                userMessageDiv.textContent = message;
-                chatMessages.appendChild(userMessageDiv);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+                function showAnalysisStatus() {
+                    document.getElementById('projectAnalysisStatus').style.display = 'block';
+                    document.getElementById('generateDiagramBtn').disabled = true;
+                }
 
-                // Send to backend
-                vscode.postMessage({ type: 'sendMessage', text: message });
-            }
-        });
+                function hideAnalysisStatus() {
+                    console.log('calling hideAnalysisStatus method')
+                    document.getElementById('projectAnalysisStatus').style.display = 'none';
+                    document.getElementById('generateDiagramBtn').disabled = false;
+                }
+                
+            
+    // // Add chat functionality
+    // document.addEventListener('DOMContentLoaded', () => {
+    //     const chatInput = document.getElementById('chatInput');
+    //     const sendButton = document.getElementById('sendButton');
 
-        // Send message on Enter key (without Shift)
-        chatInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendButton.click();
-            }
-        });
+    //     // Auto-resize textarea
+    //     chatInput.addEventListener('input', function() {
+    //         this.style.height = 'auto';
+    //         this.style.height = (this.scrollHeight) + 'px';
+    //     });
+
+    //     // Send message on button click
+    //     sendButton.addEventListener('click', () => {
+    //         const message = chatInput.value.trim();
+    //         if (message) {
+    //             // Add user message to chat
+    //             const chatMessages = document.getElementById('chatMessages');
+    //             const placeholder = chatMessages.querySelector('.placeholder');
+    //             if (placeholder) {
+    //                 placeholder.remove();
+    //             }
+
+    //             const userMessageDiv = document.createElement('div');
+    //             userMessageDiv.className = 'message user-message';
+    //             userMessageDiv.textContent = message;
+    //             chatMessages.appendChild(userMessageDiv);
+    //             chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    //             // Send to backend
+    //             vscode.postMessage({ type: 'sendMessage', text: message });
+    //         }
+    //     });
+
+    //     // Send message on Enter key (without Shift)
+    //     chatInput.addEventListener('keydown', (e) => {
+    //         if (e.key === 'Enter' && !e.shiftKey) {
+    //             e.preventDefault();
+    //             sendButton.click();
+    //         }
+    //     });
+    // });
+
+// Add chat functionality
+document.addEventListener('DOMContentLoaded', () => {
+    const chatInput = document.getElementById('chatInput');
+    const sendButton = document.getElementById('sendButton');
+    const chatMessages = document.getElementById('chatMessages');
+    const addContextButton = document.getElementById('addContextButton');
+    const contextStatus = document.getElementById('contextStatus');
+
+    let contextSnippet = ""; // store user-attached context
+
+    // Auto-resize textarea
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
     });
-</script>
 
-        </body>
-        </html>`;
-}
+    // Handle "Add Context" button
+    addContextButton.addEventListener('click', () => {
+        console.log("Are you actually working")
+        vscode.postMessage({ type: 'getSelectedCode' });
+    });
+
+    // Send message on button click
+    sendButton.addEventListener('click', () => {
+        const message = chatInput.value.trim();
+        if (message) {
+            // Add user message to chat
+            const placeholder = chatMessages.querySelector('.placeholder');
+            if (placeholder) {
+                placeholder.remove();
+            }
+
+            const userMessageDiv = document.createElement('div');
+            userMessageDiv.className = 'message user-message';
+            userMessageDiv.textContent = message;
+            if (contextSnippet) {
+                userMessageDiv.textContent += `\n📎 [Context attached]`;
+            }
+            chatMessages.appendChild(userMessageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            console.log("Got message!!"+ contextSnippet);
+            // Send to backend with optional context
+            vscode.postMessage({ 
+                type: 'sendMessage',
+                text: message,
+                contextSnippet: contextSnippet 
+            });
+
+            // Reset input + context
+            chatInput.value = '';
+            contextSnippet = "";
+            contextStatus.textContent = "";
+        }
+    });
+
+    // Send message on Enter key (without Shift)
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendButton.click();
+        }
+    });
+
+    // Receive messages from backend
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message.type === 'selectedCode') {
+            contextSnippet = message.text;
+            contextStatus.textContent = "📎 Context attached";
+        }
+    });
+});

@@ -35,11 +35,27 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.onDidReceiveMessage((message: WebviewMessage) => {
             switch (message.type) {
-                case WebviewMessageType.SendMessage:
+                case WebviewMessageType.GetSelectedCode: {
+                    const selectedText = this.getSelectedText();
+                    this.postWebviewMessage({
+                        type: WebviewMessageType.SelectedCode,
+                        text: selectedText || "No code selected"
+                    });
+                    break;
+                }
+
+                case WebviewMessageType.SendMessage: {
                     if (message.text) {
-                        this._handleUserMessage(message.text);
+                        // Pass along both the text and any attached snippet
+                        this._handleUserMessage(message.text, message.contextSnippet);
                     }
                     break;
+                }
+                // case WebviewMessageType.SendMessage:
+                //     if (message.text) {
+                //         this._handleUserMessage(message.text);
+                //     }
+                //     break;
                 case WebviewMessageType.SelectNode:
                     if (message.nodeId) {
                         this._handleNodeSelection(message.nodeId);
@@ -307,19 +323,34 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private _handleUserMessage(message: string) {
-        // Send message to backend for processing by the Langchain-based chat agent
-        if (this._view) {
-            // Show loading indicator
-            this._view.webview.postMessage({
-                type: 'botResponse',
-                text: 'Thinking...'
-            });
+    // private _handleUserMessage(message: string) {
+    //     // Send message to backend for processing by the Langchain-based chat agent
+    //     if (this._view) {
+    //         // Show loading indicator
+    //         this._view.webview.postMessage({
+    //             type: 'botResponse',
+    //             text: 'Thinking...'
+    //         });
             
-            // Send message to backend
-            vscode.commands.executeCommand('codedoc.processChatMessage', message);
-        }
+    //         // Send message to backend
+    //         vscode.commands.executeCommand('codedoc.processChatMessage', message);
+    //     }
+    // }
+    private _handleUserMessage(message: string, contextSnippet?: string) {
+    if (this._view) {
+        // Show loading indicator
+        this._view.webview.postMessage({
+            type: 'botResponse',
+            text: 'Thinking...'
+        });
+
+        // Send to backend: include contextSnippet if available
+        vscode.commands.executeCommand('codedoc.processChatMessage', { 
+            message, 
+            contextSnippet 
+        });
     }
+}
 
     private _handleNodeSelection(nodeId: string) {
         const selectedClass = this._projectStructure?.classes.find(cls => cls.name === nodeId);
@@ -476,6 +507,17 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             text += possible.charAt(Math.floor(Math.random() * possible.length));
         }
         return text;
+    }
+
+    private getSelectedText(): string | null {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return null;
+
+        const selection = editor.selection;
+        if (selection.isEmpty) return null;
+
+        console.log("Selected code: "+ selection);
+        return editor.document.getText(selection);
     }
 
 }

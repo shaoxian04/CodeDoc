@@ -100,7 +100,7 @@ body {
                     resize: none;
                 }
                 
-                .send-button, .visualize-btn {
+                .send-button, .context-button, .visualize-btn {
                     padding: 6px 12px;
                     background-color: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);

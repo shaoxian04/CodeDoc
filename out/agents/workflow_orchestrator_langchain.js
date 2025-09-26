@@ -159,31 +159,71 @@ class WorkflowOrchestrator {
             };
         }
     }
+    // // Handle chat requests through the chat agent
+    // async handleChatRequest(userInput: string, projectContext: any): Promise<AgentResponse> {
+    //     console.log('WorkflowOrchestrator handleChatRequest called with:', { userInput, projectContext });
+    //     try {
+    //         const result = await this.chatAgent.execute({
+    //             userInput: userInput,
+    //             projectContext: projectContext
+    //         });
+    //         console.log('Chat agent result:', result);
+    //         return {
+    //             success: true,
+    //             data: result
+    //         };
+    //     } catch (error) {
+    //         console.log('Error in handleChatRequest:', error);
+    //         if (error instanceof Error && error.message.includes('API key not configured')) {
+    //             return {
+    //                 success: false,
+    //                 error: 'OpenAI API key not configured. Please configure it in the settings.'
+    //             };
+    //         }
+    //         return {
+    //             success: false,
+    //             error: error instanceof Error ? error.message : 'Failed to process chat request'
+    //         };
+    //     }
+    // }
     // Handle chat requests through the chat agent
     async handleChatRequest(userInput, projectContext) {
-        console.log('WorkflowOrchestrator handleChatRequest called with:', { userInput, projectContext });
+        console.log("WorkflowOrchestrator handleChatRequest called with:", {
+            userInput,
+            projectContext,
+        });
         try {
+            // Build enriched context object
+            const enrichedContext = {
+                ...projectContext,
+                extraContext: projectContext.contextSnippet
+                    ? `User-attached code snippet:\n${projectContext.contextSnippet}`
+                    : undefined,
+            };
             const result = await this.chatAgent.execute({
-                userInput: userInput,
-                projectContext: projectContext
+                userInput,
+                projectContext: enrichedContext,
             });
-            console.log('Chat agent result:', result);
+            console.log("Chat agent result:", result);
             return {
                 success: true,
-                data: result
+                data: result,
             };
         }
         catch (error) {
-            console.log('Error in handleChatRequest:', error);
-            if (error instanceof Error && error.message.includes('API key not configured')) {
+            console.log("Error in handleChatRequest:", error);
+            if (error instanceof Error &&
+                error.message.includes("API key not configured")) {
                 return {
                     success: false,
-                    error: 'OpenAI API key not configured. Please configure it in the settings.'
+                    error: "OpenAI API key not configured. Please configure it in the settings.",
                 };
             }
             return {
                 success: false,
-                error: error instanceof Error ? error.message : 'Failed to process chat request'
+                error: error instanceof Error
+                    ? error.message
+                    : "Failed to process chat request",
             };
         }
     }

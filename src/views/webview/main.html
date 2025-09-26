@@ -45,7 +45,11 @@
                     </div>
                     <div class="chat-input-container">
                         <textarea class="chat-input" id="chatInput" placeholder="Ask about your code..." rows="1"></textarea>
-                        <button class="send-button" id="sendButton">Send</button>
+                        <div id="contextStatus" style="font-size:12px; color:green; margin:4px 0;"></div>
+                        <div class="chat-actions">
+                            <button class="send-button" id="sendButton">Send</button>
+                            <button class="context-button" id="addContextButton">+ Add Context</button>
+                        </div>
                     </div>
                 </div>
             </div>

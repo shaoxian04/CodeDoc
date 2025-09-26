@@ -1,5 +1,7 @@
 export enum WebviewMessageType {
     SendMessage = 'sendMessage',
+    GetSelectedCode = 'getSelectedCode',
+    SelectedCode = 'selectedCode',
     SelectNode = 'selectNode',
     RefreshVisualization = 'refreshVisualization',
     GenerateProjectDocs = 'generateProjectDocs',
@@ -29,6 +31,9 @@ export interface WebviewMessage {
     data?: any;
     markdown?: string;
     message?: string;
+    
+    // New fields for QnA context
+    contextSnippet?: string;
     // Add new diagram-related properties
     diagramType?: string;
     scope?: string;

@@ -349,8 +349,62 @@ function activate(context) {
         }
     }));
     // Add chat message processing command
-    context.subscriptions.push(vscode.commands.registerCommand("codedoc.processChatMessage", async (message) => {
-        console.log("codedoc.processChatMessage command executed with message:", message);
+    // context.subscriptions.push(
+    //   vscode.commands.registerCommand(
+    //     "codedoc.processChatMessage",
+    //     async (message: string) => {
+    //       console.log(
+    //         "codedoc.processChatMessage command executed with message:",
+    //         message
+    //       );
+    //       try {
+    //         // Check if API key is configured
+    //         const config = vscode.workspace.getConfiguration("codedoc");
+    //         const apiKey = config.get<string>("openaiApiKey");
+    //         if (!apiKey) {
+    //           const result = await vscode.window.showErrorMessage(
+    //             "OpenAI API key not configured. Please configure it in the settings.",
+    //             "Configure Now"
+    //           );
+    //           if (result === "Configure Now") {
+    //             console.log("Redirecting to configureExtension command");
+    //             vscode.commands.executeCommand("codedoc.configureExtension");
+    //           }
+    //           return;
+    //         }
+    //         // Parse the workspace to get project structure for context
+    //         const structure: ProjectStructure = await javaParser.parseWorkspace();
+    //         console.log("Parsed project structure:", structure);
+    //         // Use the Langchain-based workflow orchestrator with RAG for chat
+    //         const response = await workflowOrchestrator.handleChatRequest(
+    //           message,
+    //           { projectStructure: structure }
+    //         );
+    //         console.log("Workflow orchestrator response:", response);
+    //         if (response.success && response.data) {
+    //           mainProvider.showChatResponse(response); // Pass the entire response, not just response.data
+    //         } else {
+    //           mainProvider.showChatError(
+    //             response.error || "Failed to process chat message"
+    //           );
+    //         }
+    //       } catch (error) {
+    //         console.error("Error processing chat message:", error);
+    //         mainProvider.showChatError(`Error processing chat message: ${error}`);
+    //       }
+    //     }
+    //   )
+    // );
+    // Utility function: normalize casing/typos in user input
+    function normalizeInput(input) {
+        return input
+            .toLowerCase() // make case-insensitive
+            .replace(/\s+/g, " ") // collapse multiple spaces
+            .trim(); // remove leading/trailing spaces
+    }
+    // Add chat message processing command
+    context.subscriptions.push(vscode.commands.registerCommand("codedoc.processChatMessage", async (payload) => {
+        console.log("codedoc.processChatMessage executed with payload:", payload);
         try {
             // Check if API key is configured
             const config = vscode.workspace.getConfiguration("codedoc");
@@ -363,14 +417,25 @@ function activate(context) {
                 }
                 return;
             }
+            // Extract fields (support both old string-only payloads and new object payloads)
+            const rawMessage = typeof payload === "string" ? payload : payload.message;
+            const contextSnippet = typeof payload === "object" ? payload.contextSnippet : undefined;
+            // 🔹 Normalize user message
+            const userMessage = normalizeInput(rawMessage);
+            console.log("Normalized user message:", userMessage);
             // Parse the workspace to get project structure for context
             const structure = await javaParser.parseWorkspace();
             console.log("Parsed project structure:", structure);
+            // Build context object
+            const context = {
+                projectStructure: structure,
+                contextSnippet,
+            };
             // Use the Langchain-based workflow orchestrator with RAG for chat
-            const response = await workflowOrchestrator.handleChatRequest(message, { projectStructure: structure });
+            const response = await workflowOrchestrator.handleChatRequest(userMessage, context);
             console.log("Workflow orchestrator response:", response);
             if (response.success && response.data) {
-                mainProvider.showChatResponse(response); // Pass the entire response, not just response.data
+                mainProvider.showChatResponse(response); // Pass the entire response
             }
             else {
                 mainProvider.showChatError(response.error || "Failed to process chat message");
