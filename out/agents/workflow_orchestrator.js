@@ -1,9 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkflowOrchestrator = void 0;
-const documentation_agent_langchain_1 = require("./documentation_agent_langchain");
-const visualization_agent_langchain_1 = require("./visualization_agent_langchain");
-const chat_agent_langchain_1 = require("./chat_agent_langchain");
+const documentation_agen_1 = require("./documentation_agen");
+const visualization_agent_1 = require("./visualization_agent");
+const chat_agent_1 = require("./chat_agent");
 const mcp_service_1 = require("./mcp_service");
 class WorkflowOrchestrator {
     documentationAgent;
@@ -12,9 +12,9 @@ class WorkflowOrchestrator {
     mcpService;
     constructor() {
         this.mcpService = new mcp_service_1.MCPService('codedoc-project');
-        this.documentationAgent = new documentation_agent_langchain_1.DocumentationAgent();
-        this.visualizationAgent = new visualization_agent_langchain_1.VisualizationAgent();
-        this.chatAgent = new chat_agent_langchain_1.ChatAgent(this.mcpService);
+        this.documentationAgent = new documentation_agen_1.DocumentationAgent();
+        this.visualizationAgent = new visualization_agent_1.VisualizationAgent();
+        this.chatAgent = new chat_agent_1.ChatAgent(this.mcpService);
         // Register agents with MCP
         this.mcpService.registerAgent('DocumentationAgent', this.documentationAgent);
         this.mcpService.registerAgent('VisualizationAgent', this.visualizationAgent);
@@ -304,4 +304,4 @@ class WorkflowOrchestrator {
     }
 }
 exports.WorkflowOrchestrator = WorkflowOrchestrator;
-//# sourceMappingURL=workflow_orchestrator_langchain.js.map
+//# sourceMappingURL=workflow_orchestrator.js.map

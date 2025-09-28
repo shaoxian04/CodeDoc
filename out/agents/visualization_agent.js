@@ -970,4 +970,4 @@ classDiagram
     }
 }
 exports.VisualizationAgent = VisualizationAgent;
-//# sourceMappingURL=visualization_agent_langchain.js.map
+//# sourceMappingURL=visualization_agent.js.map

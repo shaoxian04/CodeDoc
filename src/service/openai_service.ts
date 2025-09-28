@@ -9,8 +9,8 @@ export class OpenAIService {
     private temperature: number = 0.3;
 
     constructor() {
-        // We don't initialize the OpenAI client here to avoid requiring API key during extension activation
-    }
+        
+        }
 
     private async initializeOpenAI() {
         const config = vscode.workspace.getConfiguration('codedoc');

@@ -18,16 +18,10 @@ class MCPService {
             taskProgress: new Map()
         };
     }
-    /**
-     * Register an agent with the MCP
-     */
     registerAgent(name, agent) {
         console.log('Registering agent:', name);
         this.agents.set(name, agent);
     }
-    /**
-     * Send a message to a specific agent
-     */
     async sendMessage(message) {
         console.log('Sending message:', message);
         this.messageQueue.push(message);
@@ -48,9 +42,6 @@ class MCPService {
             throw error;
         }
     }
-    /**
-     * Broadcast a message to all agents
-     */
     async broadcastMessage(message) {
         const responses = [];
         for (const [agentName, agent] of this.agents.entries()) {
@@ -76,30 +67,18 @@ class MCPService {
         }
         return responses;
     }
-    /**
-     * Update shared context
-     */
     updateSharedContext(updates) {
         this.sharedContext = {
             ...this.sharedContext,
             ...updates
         };
     }
-    /**
-     * Get shared context
-     */
     getSharedContext() {
         return { ...this.sharedContext };
     }
-    /**
-     * Add an observer for message monitoring
-     */
     addObserver(observer) {
         this.observers.push(observer);
     }
-    /**
-     * Remove an observer
-     */
     removeObserver(observer) {
         const index = this.observers.indexOf(observer);
         if (index > -1) {
@@ -109,9 +88,6 @@ class MCPService {
     notifyObservers(message) {
         this.observers.forEach(observer => observer(message));
     }
-    /**
-     * Coordinate a task between multiple agents
-     */
     async coordinateTask(coordinator, task, payload) {
         // Create coordination message
         const coordinationMessage = {
@@ -126,9 +102,7 @@ class MCPService {
             },
             timestamp: new Date()
         };
-        // Broadcast to all agents
         const responses = await this.broadcastMessage(coordinationMessage);
-        // Process responses and determine next steps
         return {
             task,
             coordinator,

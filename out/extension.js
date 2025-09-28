@@ -39,17 +39,16 @@ const vscode = __importStar(require("vscode"));
 const main_provider_1 = require("./views/main_provider");
 const java_parser_1 = require("./service/java_parser");
 const openai_service_1 = require("./service/openai_service");
-const workflow_orchestrator_langchain_1 = require("./agents/workflow_orchestrator_langchain");
+const workflow_orchestrator_1 = require("./agents/workflow_orchestrator");
 const cp = __importStar(require("child_process"));
 const fs = __importStar(require("fs"));
 function activate(context) {
     console.log("CodeDoc extension is now active!");
-    // Log activation for debugging
     console.log("CodeDoc extension activation started");
     const javaParser = new java_parser_1.JavaParser();
     const openaiService = new openai_service_1.OpenAIService();
     const mainProvider = new main_provider_1.MainViewProvider(context.extensionUri);
-    const workflowOrchestrator = new workflow_orchestrator_langchain_1.WorkflowOrchestrator(); // Langchain-based workflow orchestrator with RAG and MCP
+    const workflowOrchestrator = new workflow_orchestrator_1.WorkflowOrchestrator();
     console.log('CodeDoc services initialized');
     context.subscriptions.push(vscode.window.registerWebviewViewProvider('codedoc.mainView', mainProvider));
     console.log('CodeDoc webview provider registered');

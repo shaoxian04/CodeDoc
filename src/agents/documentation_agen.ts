@@ -5,7 +5,7 @@ import { Agent } from "./types";
 import { ProjectStructure, JavaClass } from "../service/java_parser";
 import { RAGService } from "../service/rag_service";
 import { SyntheticExampleGenerator, SyntheticExample } from "../service/synthetic_example_generator";
-import { VisualizationAgent } from "./visualization_agent_langchain";
+import { VisualizationAgent } from "./visualization_agent";
 import * as vscode from "vscode";
 
 // Complexity analysis interfaces

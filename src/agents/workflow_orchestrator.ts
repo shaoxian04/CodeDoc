@@ -1,6 +1,6 @@
-import { DocumentationAgent } from "./documentation_agent_langchain";
-import { VisualizationAgent } from "./visualization_agent_langchain";
-import { ChatAgent } from "./chat_agent_langchain";
+import { DocumentationAgent } from "./documentation_agen";
+import { VisualizationAgent } from "./visualization_agent";
+import { ChatAgent } from "./chat_agent";
 import { AgentContext, AgentResponse } from "./types";
 import { ProjectStructure } from "../service/java_parser";
 import { MCPService, AgentMessage } from "./mcp_service";

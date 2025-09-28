@@ -4,7 +4,6 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { UsageScanner, UsageExample } from './usage_scanner';
 import * as vscode from 'vscode';
 
-// We'll import ChatOpenAI only when needed to avoid early validation
 let ChatOpenAI: any;
 
 export class RAGService {
@@ -15,11 +14,9 @@ export class RAGService {
     constructor() {
         this.outputParser = new StringOutputParser();
         this.usageScanner = new UsageScanner();
-        // We don't initialize the model here to avoid requiring API key during extension activation
     }
 
     private async initializeModel() {
-        // Lazy import to avoid early validation
         if (!ChatOpenAI) {
             const langchainOpenAI = await import("@langchain/openai");
             ChatOpenAI = langchainOpenAI.ChatOpenAI;
@@ -29,7 +26,6 @@ export class RAGService {
             return this.model;
         }
 
-        // Get configuration
         const config = vscode.workspace.getConfiguration('codedoc');
         const apiKey = config.get<string>('openaiApiKey');
         const modelName = config.get<string>('openaiModel', 'gpt-4');
@@ -50,12 +46,7 @@ export class RAGService {
         return this.model;
     }
 
-    /**
-     * Retrieve relevant code context based on user query
-     */
     public async retrieveContext(query: string, structure: ProjectStructure): Promise<any> {
-        // Simple keyword-based retrieval for now
-        // In a more advanced implementation, this could use embeddings for semantic search
         const keywords = this.extractKeywords(query);
         const relevantClasses = this.findRelevantClasses(keywords, structure);
         const relevantMethods = this.findRelevantMethods(keywords, structure);
@@ -67,14 +58,8 @@ export class RAGService {
         };
     }
 
-    /**
-     * Augment a prompt with retrieved context
-     */
     public async augmentPrompt(prompt: string, context: any): Promise<string> {
         const contextSummary = this.createContextSummary(context);
-        
-        // Instead of creating a new prompt template, we'll directly augment the prompt string
-        // This avoids potential issues with variable interpolation in nested templates
         const augmentedPrompt = `
 Use the following context to enhance your response:
 

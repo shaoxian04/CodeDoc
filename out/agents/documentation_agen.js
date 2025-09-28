@@ -39,7 +39,7 @@ const output_parsers_1 = require("@langchain/core/output_parsers");
 const prompts_1 = require("@langchain/core/prompts");
 const rag_service_1 = require("../service/rag_service");
 const synthetic_example_generator_1 = require("../service/synthetic_example_generator");
-const visualization_agent_langchain_1 = require("./visualization_agent_langchain");
+const visualization_agent_1 = require("./visualization_agent");
 const vscode = __importStar(require("vscode"));
 // Complexity analysis interfaces
 var ComplexityLevel;
@@ -58,7 +58,7 @@ class DocumentationAgent {
         this.outputParser = new output_parsers_1.StringOutputParser();
         this.ragService = new rag_service_1.RAGService();
         this.syntheticGenerator = new synthetic_example_generator_1.SyntheticExampleGenerator();
-        this.visualizationAgent = new visualization_agent_langchain_1.VisualizationAgent();
+        this.visualizationAgent = new visualization_agent_1.VisualizationAgent();
         // We don't initialize the model here to avoid requiring API key during extension activation
     }
     // Complexity Analysis Methods
@@ -790,4 +790,4 @@ DIAGRAM GUIDELINES:
     }
 }
 exports.DocumentationAgent = DocumentationAgent;
-//# sourceMappingURL=documentation_agent_langchain.js.map
+//# sourceMappingURL=documentation_agen.js.map

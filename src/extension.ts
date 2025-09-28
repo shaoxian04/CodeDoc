@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { MainViewProvider } from './views/main_provider';
 import { JavaParser, ProjectStructure } from './service/java_parser';
 import { OpenAIService } from './service/openai_service';
-import { WorkflowOrchestrator } from './agents/workflow_orchestrator_langchain';
+import { WorkflowOrchestrator } from './agents/workflow_orchestrator';
 
 import * as cp from 'child_process';
 import * as fs from 'fs';
