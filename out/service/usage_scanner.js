@@ -16,7 +16,6 @@ class UsageScanner {
             const classExamples = await this.scanClassForMethodUsage(javaClass, targetClassName, targetMethodName);
             examples.push(...classExamples);
         }
-        // Sort by relevance (prefer examples with parameters)
         return examples.sort((a, b) => b.parameters.length - a.parameters.length);
     }
     /**
@@ -97,14 +96,13 @@ class UsageScanner {
                         parameters: [],
                     };
                     examples.push(example);
-                    break; // Only one example per line
+                    break;
                 }
             }
         }
         return examples;
     }
     isLikelyTargetMethodCall(line, targetClassName, methodName) {
-        // Simple heuristics to determine if this is likely our target method
         const lowerLine = line.toLowerCase();
         const lowerClassName = targetClassName.toLowerCase();
         const lowerMethodName = methodName.toLowerCase();

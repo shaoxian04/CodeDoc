@@ -24,12 +24,8 @@ class SyntheticExampleGenerator {
         }
         return examples;
     }
-    /**
-     * Generate class instantiation examples
-     */
     generateClassUsageExamples(javaClass, springPatterns) {
         const examples = [];
-        // Generate Spring injection example if it's a Spring component
         if (springPatterns.length > 0) {
             const injectionExample = this.generateSpringInjectionExample(javaClass, springPatterns[0]);
             examples.push(injectionExample);
@@ -213,7 +209,6 @@ ${instanceName}.someMethod();`.trim();
         return className.charAt(0).toLowerCase() + className.slice(1);
     }
     getVariableName(type) {
-        // Generate appropriate variable name for return type
         const lowerType = type.toLowerCase();
         if (lowerType.includes('list'))
             return 'items';

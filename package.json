@@ -1,17 +1,19 @@
 {
-  "name": "codedoc",
-  "displayName": "CodeDoc",
-  "description": "Smart documentation assistant with AI chatbot and code visualization",
-  "version": "0.0.1",
+  "name": "codedocx",
+  "displayName": "CodeDocX",
+  "description": "AI-powered code documentation and visualization for Java projects.",
+  "version": "1.0.0",
+  "publisher": "NP",
   "engines": {
     "vscode": "^1.74.0"
   },
   "categories": [
-    "Other"
+    "Other", "Programming Languages", "Visualization"
   ],
   "activationEvents": [
     "onStartupFinished"
   ],
+  "icon": "icons/CodeDocIcon.png",
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -129,12 +131,15 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "publish": "vsce publish"
   },
   "devDependencies": {
     "@types/node": "16.x",
     "@types/vscode": "^1.74.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vsce": "^3.0.0"
   },
   "dependencies": {
     "@langchain/openai": "^0.3.0",
@@ -142,5 +147,13 @@
     "marked": "^16.2.1",
     "openai": "^5.19.1",
     "puppeteer": "^24.22.2"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shaoxian04/CodeDoc"
+  },
+  "bugs": {
+    "url": "https://github.com/shaoxian04/CodeDoc"
+  },
+  "homepage": "https://github.com/shaoxian04/CodeDoc"
 }

@@ -45,7 +45,6 @@ class OpenAIService {
     maxTokens = 2000;
     temperature = 0.3;
     constructor() {
-        // We don't initialize the OpenAI client here to avoid requiring API key during extension activation
     }
     async initializeOpenAI() {
         const config = vscode.workspace.getConfiguration('codedoc');

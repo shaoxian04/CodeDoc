@@ -37,7 +37,6 @@ exports.RAGService = void 0;
 const output_parsers_1 = require("@langchain/core/output_parsers");
 const usage_scanner_1 = require("./usage_scanner");
 const vscode = __importStar(require("vscode"));
-// We'll import ChatOpenAI only when needed to avoid early validation
 let ChatOpenAI;
 class RAGService {
     model = null;
@@ -46,10 +45,8 @@ class RAGService {
     constructor() {
         this.outputParser = new output_parsers_1.StringOutputParser();
         this.usageScanner = new usage_scanner_1.UsageScanner();
-        // We don't initialize the model here to avoid requiring API key during extension activation
     }
     async initializeModel() {
-        // Lazy import to avoid early validation
         if (!ChatOpenAI) {
             const langchainOpenAI = await Promise.resolve().then(() => __importStar(require("@langchain/openai")));
             ChatOpenAI = langchainOpenAI.ChatOpenAI;
@@ -57,7 +54,6 @@ class RAGService {
         if (this.model) {
             return this.model;
         }
-        // Get configuration
         const config = vscode.workspace.getConfiguration('codedoc');
         const apiKey = config.get('openaiApiKey');
         const modelName = config.get('openaiModel', 'gpt-4');
@@ -74,12 +70,7 @@ class RAGService {
         });
         return this.model;
     }
-    /**
-     * Retrieve relevant code context based on user query
-     */
     async retrieveContext(query, structure) {
-        // Simple keyword-based retrieval for now
-        // In a more advanced implementation, this could use embeddings for semantic search
         const keywords = this.extractKeywords(query);
         const relevantClasses = this.findRelevantClasses(keywords, structure);
         const relevantMethods = this.findRelevantMethods(keywords, structure);
@@ -89,13 +80,8 @@ class RAGService {
             projectStats: this.getProjectStats(structure)
         };
     }
-    /**
-     * Augment a prompt with retrieved context
-     */
     async augmentPrompt(prompt, context) {
         const contextSummary = this.createContextSummary(context);
-        // Instead of creating a new prompt template, we'll directly augment the prompt string
-        // This avoids potential issues with variable interpolation in nested templates
         const augmentedPrompt = `
 Use the following context to enhance your response:
 
