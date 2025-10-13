@@ -2,13 +2,15 @@
   "name": "codedocx",
   "displayName": "CodeDocX",
   "description": "AI-powered code documentation and visualization for Java projects.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "NP",
   "engines": {
     "vscode": "^1.74.0"
   },
   "categories": [
-    "Other", "Programming Languages", "Visualization"
+    "Other",
+    "Programming Languages",
+    "Visualization"
   ],
   "activationEvents": [
     "onStartupFinished"
