@@ -20,7 +20,15 @@ export function activate(context: vscode.ExtensionContext) {
   console.log("CodeDoc services initialized");
 
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider("codedoc.mainView", mainProvider)
+    vscode.window.registerWebviewViewProvider(
+      "codedoc.mainView",
+      mainProvider,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true,
+        },
+      }
+    )
   );
 
   console.log("CodeDoc webview provider registered");

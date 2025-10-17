@@ -44,10 +44,29 @@ class MainViewProvider {
     _isAnalysisStarted = false;
     _isAnalysisCompleted = false;
     _webViewState = 'initial';
+    static _cachedProjectStructure;
+    static _cachedAnalysisState = {
+        started: false,
+        completed: false,
+        state: 'initial'
+    };
     constructor(_extensionUri) {
         this._extensionUri = _extensionUri;
+        console.log('MainViewProvider constructor called');
+        // Restore cached state
+        if (MainViewProvider._cachedProjectStructure) {
+            console.log('Restoring cached project structure with', MainViewProvider._cachedProjectStructure.classes.length, 'classes');
+            this._projectStructure = MainViewProvider._cachedProjectStructure;
+            this._isAnalysisStarted = MainViewProvider._cachedAnalysisState.started;
+            this._isAnalysisCompleted = MainViewProvider._cachedAnalysisState.completed;
+            this._webViewState = MainViewProvider._cachedAnalysisState.state;
+        }
+        else {
+            console.log('No cached project structure found');
+        }
     }
     resolveWebviewView(webviewView, context, _token) {
+        console.log('resolveWebviewView called, has cached structure:', !!MainViewProvider._cachedProjectStructure);
         this._view = webviewView;
         webviewView.webview.options = {
             enableScripts: true,
@@ -57,7 +76,9 @@ class MainViewProvider {
         webviewView.retainContextWhenHidden = true;
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
         webviewView.onDidDispose(() => {
+            console.log('Webview disposed, preserving state for next session');
             this._view = undefined;
+            // State is preserved in static variables, so no need to clear project structure
         });
         webviewView.webview.onDidReceiveMessage(message => {
             switch (message.type) {
@@ -135,20 +156,9 @@ class MainViewProvider {
             }, 100);
         }
         else if (!this._isAnalysisStarted && this._webViewState === 'initial') {
-            // Auto-trigger project analysis only if no structure is available and analysis hasn't started
-            console.log('No project structure available, triggering auto-analysis');
-            this._isAnalysisStarted = true;
-            this._webViewState = 'analyzing';
-            setTimeout(() => {
-                if (this._view && this._view.webview) {
-                    this._view.webview.postMessage({
-                        type: 'analysisStarted'
-                    });
-                }
-            }, 100);
-            setTimeout(() => {
-                vscode.commands.executeCommand('codedoc.visualizeCode');
-            }, 200);
+            // Don't auto-trigger analysis - let user manually trigger it
+            console.log('No project structure available, waiting for user to trigger analysis');
+            // Just show the initial state without auto-analysis
         }
         else if (this._webViewState === 'analyzing') {
             setTimeout(() => {
@@ -177,6 +187,13 @@ class MainViewProvider {
         this._projectStructure = structure;
         this._isAnalysisCompleted = true;
         this._webViewState = 'completed';
+        // Cache the state for future webview sessions
+        MainViewProvider._cachedProjectStructure = structure;
+        MainViewProvider._cachedAnalysisState = {
+            started: this._isAnalysisStarted,
+            completed: this._isAnalysisCompleted,
+            state: this._webViewState
+        };
         if (this._view && this._view.webview) {
             console.log('Sending visualization data to webview');
             setTimeout(() => {

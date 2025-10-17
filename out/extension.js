@@ -50,7 +50,11 @@ function activate(context) {
     const mainProvider = new main_provider_1.MainViewProvider(context.extensionUri);
     const workflowOrchestrator = new workflow_orchestrator_1.WorkflowOrchestrator();
     console.log("CodeDoc services initialized");
-    context.subscriptions.push(vscode.window.registerWebviewViewProvider("codedoc.mainView", mainProvider));
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider("codedoc.mainView", mainProvider, {
+        webviewOptions: {
+            retainContextWhenHidden: true,
+        },
+    }));
     console.log("CodeDoc webview provider registered");
     context.subscriptions.push(vscode.commands.registerCommand("codedoc.openChat", () => {
         console.log("codedoc.openChat command executed");
