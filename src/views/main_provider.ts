@@ -1774,6 +1774,13 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         case 'updateVisualization':
                             renderVisualization(message.data);
                             break;
+                        case 'showClassDocumentation':
+                            showClassDocumentation(message.content);
+                            if (message.markdown) {
+                                document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
+                            }
+                            switchTab('explanation');
+                            break;
                         case 'showExplanation':
                             showClassDocumentation(message.text);
                             if (message.markdown) {
