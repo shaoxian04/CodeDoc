@@ -211,6 +211,9 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             console.log('showClassDocumentation called with content length:', content?.length || 0);
             console.log('Content preview:', content?.substring(0, 200) + (content && content.length > 200 ? '...' : ''));
             
+            // Hide loading state
+            this._view.webview.postMessage({ type: 'hideDocumentationLoading' });
+            
             const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>'));
             console.log('Content is HTML:', isHtml);
             
@@ -256,6 +259,9 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         if (this._view) {
             console.log('showProjectDocumentation called with content length:', content?.length || 0);
             console.log('Content preview:', content?.substring(0, 200) + (content && content.length > 200 ? '...' : ''));
+            
+            // Hide loading state
+            this._view.webview.postMessage({ type: 'hideDocumentationLoading' });
             
             const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>'));
             console.log('Content is HTML:', isHtml);
@@ -433,10 +439,24 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     }
 
     private _generateProjectDocumentation() {
+        if (this._view) {
+            this._view.webview.postMessage({ 
+                type: 'showDocumentationLoading', 
+                message: 'Generating project documentation...',
+                docType: 'project'
+            });
+        }
         vscode.commands.executeCommand('codedoc.generateDocs');
     }
 
     private _generateClassDocumentation() {
+        if (this._view) {
+            this._view.webview.postMessage({ 
+                type: 'showDocumentationLoading', 
+                message: 'Generating class documentation...',
+                docType: 'class'
+            });
+        }
         vscode.commands.executeCommand('codedoc.generateClassDocs');
     }
 
@@ -738,6 +758,66 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 .stat-label {
                     font-size: 10px;
                     color: var(--vscode-descriptionForeground);
+                }
+                
+                /* Loading Bar Styles */
+                .documentation-loading {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    background-color: var(--vscode-editor-background);
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    padding: 10px;
+                    z-index: 1000;
+                    display: none;
+                }
+                
+                .loading-content {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                
+                .loading-spinner {
+                    width: 16px;
+                    height: 16px;
+                    border: 2px solid var(--vscode-panel-border);
+                    border-top: 2px solid var(--vscode-button-background);
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                }
+                
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+                
+                .loading-message {
+                    font-size: 13px;
+                    color: var(--vscode-foreground);
+                }
+                
+                .loading-progress {
+                    flex: 1;
+                    height: 4px;
+                    background-color: var(--vscode-panel-border);
+                    border-radius: 2px;
+                    overflow: hidden;
+                    margin-left: 10px;
+                }
+                
+                .loading-progress-bar {
+                    height: 100%;
+                    background-color: var(--vscode-button-background);
+                    width: 0%;
+                    animation: progress 2s ease-in-out infinite;
+                }
+                
+                @keyframes progress {
+                    0% { width: 0%; }
+                    50% { width: 70%; }
+                    100% { width: 100%; }
                 }
                 
                 .architecture-layers-container {
@@ -1266,6 +1346,17 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             </style>
         </head>
         <body>
+            <!-- Documentation Loading Bar -->
+            <div id="documentation-loading" class="documentation-loading">
+                <div class="loading-content">
+                    <div class="loading-spinner"></div>
+                    <span id="loading-message" class="loading-message">Generating documentation...</span>
+                    <div class="loading-progress">
+                        <div class="loading-progress-bar"></div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="nav-tabs">
                 <button class="nav-tab active" id="tab-overview">📊 Overview</button>
                 <button class="nav-tab" id="tab-chat">🤖 AI Assistant</button>
@@ -1469,6 +1560,34 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             const markdownContent = contentContainer.dataset.markdown;
             const content = markdownContent || document.getElementById('class-documentation-text').innerHTML;
             vscode.postMessage({ type: 'exportClassDocs', content: content });
+        }
+
+        function showDocumentationLoading(message, docType) {
+            console.log('Showing documentation loading:', message, docType);
+            const loadingElement = document.getElementById('documentation-loading');
+            const messageElement = document.getElementById('loading-message');
+            
+            if (loadingElement && messageElement) {
+                messageElement.textContent = message;
+                loadingElement.style.display = 'block';
+                
+                // Switch to explanation tab to show the loading
+                switchTab('explanation');
+                
+                // Hide the explanation content while loading
+                const explanationContent = document.getElementById('class-documentation-content');
+                const explanationPlaceholder = document.getElementById('explanation-placeholder');
+                if (explanationContent) explanationContent.style.display = 'none';
+                if (explanationPlaceholder) explanationPlaceholder.style.display = 'none';
+            }
+        }
+        
+        function hideDocumentationLoading() {
+            console.log('Hiding documentation loading');
+            const loadingElement = document.getElementById('documentation-loading');
+            if (loadingElement) {
+                loadingElement.style.display = 'none';
+            }
         }
 
         function showClassDocumentation(content) {
@@ -1789,6 +1908,12 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     switch (message.type) {
                         case 'updateVisualization':
                             renderVisualization(message.data);
+                            break;
+                        case 'showDocumentationLoading':
+                            showDocumentationLoading(message.message, message.docType);
+                            break;
+                        case 'hideDocumentationLoading':
+                            hideDocumentationLoading();
                             break;
                         case 'showClassDocumentation':
                             showClassDocumentation(message.content);
