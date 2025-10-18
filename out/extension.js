@@ -84,7 +84,7 @@ function activate(context) {
             // Use the Langchain-based workflow orchestrator with RAG
             const response = await workflowOrchestrator.generateProjectOverview(structure, "Generate comprehensive project overview documentation");
             if (response.success && response.data) {
-                mainProvider.showProjectDocumentation(response.data);
+                await mainProvider.showProjectDocumentation(response.data);
                 vscode.window.showInformationMessage("Documentation generated successfully!");
             }
             else {
@@ -639,7 +639,7 @@ function activate(context) {
             // Use the Langchain-based workflow orchestrator for class documentation with RAG
             const response = await workflowOrchestrator.generateClassDocumentation(javaClass, relatedClasses, `Generate documentation for class ${javaClass.name}`);
             if (response.success && response.data) {
-                mainProvider.showClassDocumentation(response.data);
+                await mainProvider.showClassDocumentation(response.data);
                 vscode.window.showInformationMessage("Class documentation generated successfully!");
             }
             else {

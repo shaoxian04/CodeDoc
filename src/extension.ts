@@ -81,7 +81,7 @@ export function activate(context: vscode.ExtensionContext) {
           "Generate comprehensive project overview documentation"
         );
         if (response.success && response.data) {
-          mainProvider.showProjectDocumentation(response.data);
+          await mainProvider.showProjectDocumentation(response.data);
           vscode.window.showInformationMessage(
             "Documentation generated successfully!"
           );
@@ -837,7 +837,7 @@ export function activate(context: vscode.ExtensionContext) {
           `Generate documentation for class ${javaClass.name}`
         );
         if (response.success && response.data) {
-          mainProvider.showClassDocumentation(response.data);
+          await mainProvider.showClassDocumentation(response.data);
           vscode.window.showInformationMessage(
             "Class documentation generated successfully!"
           );
