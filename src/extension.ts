@@ -240,7 +240,7 @@ export function activate(context: vscode.ExtensionContext) {
               rootReadme &&
               !related.find((u) => u.fsPath === rootReadme.fsPath)
             )
-              related.push(rootReadme);
+              {related.push(rootReadme);}
             if (related.length) filesToCheck = related;
           }
 
@@ -381,7 +381,7 @@ export function activate(context: vscode.ExtensionContext) {
                 if (repoLatest) {
                   const sec = parseInt(repoLatest.trim(), 10);
                   if (!isNaN(sec))
-                    latestCodeCommit = Math.max(latestCodeCommit, sec * 1000);
+                    {latestCodeCommit = Math.max(latestCodeCommit, sec * 1000);}
                 }
               }
 
