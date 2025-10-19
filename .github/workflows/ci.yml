@@ -29,7 +29,9 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm install -g @vscode/vsce
         env:
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true
 
@@ -50,6 +52,12 @@ jobs:
           ls -la
           echo "Out directory contents:"
           ls -la out/ || echo "No out directory"
+          echo "Node version:"
+          node --version
+          echo "NPM version:"
+          npm --version
+          echo "VSCE version:"
+          vsce --version || echo "VSCE not found globally"
           npm run package
 
       - name: Upload VSIX artifact
@@ -73,7 +81,9 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm install -g @vscode/vsce
         env:
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true
 
@@ -101,7 +111,9 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm install -g @vscode/vsce
 
       - name: Compile TypeScript
         run: npm run compile
@@ -110,7 +122,7 @@ jobs:
         run: npm run package
 
       - name: Publish to VS Code Marketplace
-        run: npx @vscode/vsce publish --packagePath *.vsix
+        run: vsce publish --packagePath *.vsix
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
