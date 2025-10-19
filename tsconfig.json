@@ -14,7 +14,7 @@
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
         "moduleResolution": "node",
-        "types": [],
+        "types": ["mocha", "node"],
         "noImplicitAny": false
     },
     "exclude": [

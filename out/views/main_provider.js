@@ -222,7 +222,7 @@ class MainViewProvider {
             this._view.webview.postMessage({ type: 'clearChat' });
         }
     }
-    async showClassDocumentation(content) {
+    showClassDocumentation(content) {
         if (this._view) {
             console.log('showClassDocumentation called with content length:', content?.length || 0);
             console.log('Content preview:', content?.substring(0, 200) + (content && content.length > 200 ? '...' : ''));
@@ -230,32 +230,47 @@ class MainViewProvider {
             this._view.webview.postMessage({ type: 'hideDocumentationLoading' });
             const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>'));
             console.log('Content is HTML:', isHtml);
-            let finalContent = content;
             try {
                 if (!isHtml) {
-                    console.log('Converting markdown to HTML with marked');
-                    const result = await (0, marked_1.marked)(content);
-                    finalContent = typeof result === 'string' ? result : String(result);
-                    console.log('Converted HTML length:', finalContent?.length || 0);
-                    console.log('Converted HTML preview:', finalContent?.substring(0, 200) + (finalContent && finalContent.length > 200 ? '...' : ''));
+                    console.log('Converting markdown to HTML');
+                    const result = (0, marked_1.marked)(content);
+                    if (result instanceof Promise) {
+                        result.then(htmlContent => {
+                            console.log('Converted HTML length:', htmlContent?.length || 0);
+                            console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
+                            this._view.webview.postMessage({
+                                type: 'showClassDocumentation',
+                                content: htmlContent
+                            });
+                        });
+                    }
+                    else {
+                        console.log('Converted HTML length:', result?.length || 0);
+                        console.log('Converted HTML preview:', result?.substring(0, 200) + (result && result.length > 200 ? '...' : ''));
+                        this._view.webview.postMessage({
+                            type: 'showClassDocumentation',
+                            content: result
+                        });
+                    }
                 }
                 else {
-                    console.log('Content is already HTML');
+                    console.log('Content is already HTML, sending as is');
+                    this._view.webview.postMessage({
+                        type: 'showClassDocumentation',
+                        content: content
+                    });
                 }
             }
             catch (error) {
-                console.error('Error converting markdown to HTML:', error);
-                // Use original content as fallback
-                finalContent = content;
+                console.error('Error converting content to HTML:', error);
+                this._view.webview.postMessage({
+                    type: 'showClassDocumentation',
+                    content: content
+                });
             }
-            // Send the final content to webview
-            this._view.webview.postMessage({
-                type: 'showClassDocumentation',
-                content: finalContent
-            });
         }
     }
-    async showProjectDocumentation(content) {
+    showProjectDocumentation(content) {
         if (this._view) {
             console.log('showProjectDocumentation called with content length:', content?.length || 0);
             console.log('Content preview:', content?.substring(0, 200) + (content && content.length > 200 ? '...' : ''));
@@ -263,30 +278,56 @@ class MainViewProvider {
             this._view.webview.postMessage({ type: 'hideDocumentationLoading' });
             const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>'));
             console.log('Content is HTML:', isHtml);
-            let finalContent = content;
             try {
                 if (!isHtml) {
-                    console.log('Converting markdown to HTML with marked');
-                    const result = await (0, marked_1.marked)(content);
-                    finalContent = typeof result === 'string' ? result : String(result);
-                    console.log('Converted HTML length:', finalContent?.length || 0);
-                    console.log('Converted HTML preview:', finalContent?.substring(0, 200) + (finalContent && finalContent.length > 200 ? '...' : ''));
+                    console.log('Converting markdown to HTML');
+                    const result = (0, marked_1.marked)(content);
+                    if (result instanceof Promise) {
+                        result.then(htmlContent => {
+                            console.log('Converted HTML length:', htmlContent?.length || 0);
+                            console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
+                            this._view.webview.postMessage({
+                                type: 'showProjectOverview',
+                                text: htmlContent,
+                                markdown: content
+                            });
+                        }).catch(error => {
+                            console.error('Error converting markdown to HTML:', error);
+                            this._view.webview.postMessage({
+                                type: 'showProjectOverview',
+                                text: `<pre>${content || ''}</pre>`,
+                                markdown: content
+                            });
+                        });
+                    }
+                    else {
+                        const htmlContent = result;
+                        console.log('Converted HTML length:', htmlContent?.length || 0);
+                        console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
+                        this._view.webview.postMessage({
+                            type: 'showProjectOverview',
+                            text: htmlContent,
+                            markdown: content
+                        });
+                    }
                 }
                 else {
-                    console.log('Content is already HTML');
+                    console.log('Content is already HTML, using as-is');
+                    this._view.webview.postMessage({
+                        type: 'showProjectOverview',
+                        text: content,
+                        markdown: content
+                    });
                 }
             }
             catch (error) {
                 console.error('Error converting markdown to HTML:', error);
-                // Use original content as fallback
-                finalContent = content;
+                this._view.webview.postMessage({
+                    type: 'showProjectOverview',
+                    text: `<pre>${content || ''}</pre>`,
+                    markdown: content
+                });
             }
-            // Send the final content to webview
-            this._view.webview.postMessage({
-                type: 'showProjectOverview',
-                text: finalContent,
-                markdown: content
-            });
         }
     }
     showChatResponse(response) {
@@ -1529,36 +1570,7 @@ class MainViewProvider {
             }
         }
         
-        function convertMarkdownToHtml(markdown) {
-            console.log('Using fallback markdown converter');
-            let html = markdown;
-            
-            // Simple conversions for basic markdown
-            // Headers
-            html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
-            html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
-            html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-            
-            // Bold and italic
-            html = html.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
-            html = html.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');
-            
-            // Lists (simple)
-            html = html.replace(/^- (.*)$/gm, '<li>$1</li>');
-            html = html.replace(/^\\* (.*)$/gm, '<li>$1</li>');
-            
-            // Wrap consecutive li elements in ul
-            html = html.replace(/(<li>.*<\\/li>)/g, '<ul>$1</ul>');
-            
-            // Line breaks
-            html = html.replace(/\\n\\n/g, '<br><br>');
-            html = html.replace(/\\n/g, '<br>');
-            
-            // Wrap in div for styling
-            html = '<div style="line-height: 1.6; font-family: inherit;">' + html + '</div>';
-            
-            return html;
-        }
+
 
         function showClassDocumentation(content) {
             console.log('showClassDocumentation called in webview with content length:', content ? content.length : 0);
@@ -1570,19 +1582,9 @@ class MainViewProvider {
                     document.getElementById('class-documentation-content').style.display = 'block';
                     const docTextElement = document.getElementById('class-documentation-text');
                     
-                    // Check if content is HTML or markdown
-                    const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>') || content.includes('<div'));
-                    console.log('Content is HTML in webview:', isHtml);
-                    
-                    if (isHtml) {
-                        console.log('Setting HTML content directly');
-                        docTextElement.innerHTML = content || '';
-                    } else {
-                        console.log('Converting markdown to HTML in webview (fallback)');
-                        // Simple markdown to HTML conversion as fallback
-                        const htmlContent = convertMarkdownToHtml(content || '');
-                        docTextElement.innerHTML = htmlContent;
-                    }
+                    // Content should already be converted to HTML by the backend
+                    console.log('Setting HTML content directly (backend already converted)');
+                    docTextElement.innerHTML = content || '';
                     
                     docTextElement.style.display = 'none';
                     docTextElement.offsetHeight; // Trigger reflow
