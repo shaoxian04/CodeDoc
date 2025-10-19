@@ -124,39 +124,45 @@ export class SentryService {
 
   public sendTestError(): void {
     if (!this.initialized) {
-      console.log('Sentry not initialized, cannot send test error');
+      console.log("Sentry not initialized, cannot send test error");
       return;
     }
 
-    console.log('Sending test error to Sentry...');
-    
+    console.log("Sending test error to Sentry...");
+
     // Add test breadcrumbs
-    this.addBreadcrumb('User triggered test error', 'test', {
-      action: 'manual_test',
-      timestamp: new Date().toISOString()
+    this.addBreadcrumb("User triggered test error", "test", {
+      action: "manual_test",
+      timestamp: new Date().toISOString(),
     });
 
     // Send test message
-    this.captureMessage('Sentry integration test - this is a test message', 'info', {
-      test: true,
-      feature: 'sentry_integration',
-      version: '1.0.3'
-    });
+    this.captureMessage(
+      "Sentry integration test - this is a test message",
+      "info",
+      {
+        test: true,
+        feature: "sentry_integration",
+        version: "1.0.3",
+      }
+    );
 
     // Send test error
-    const testError = new Error('Sentry integration test - this is a test error');
+    const testError = new Error(
+      "Sentry integration test - this is a test error"
+    );
     testError.stack = `Error: Sentry integration test - this is a test error
     at SentryService.sendTestError (sentry_service.ts:123:45)
     at TestCommand.execute (extension.ts:67:89)`;
-    
+
     this.captureException(testError, {
       test: true,
-      feature: 'sentry_integration',
-      trigger: 'manual_test',
-      timestamp: new Date().toISOString()
+      feature: "sentry_integration",
+      trigger: "manual_test",
+      timestamp: new Date().toISOString(),
     });
 
-    console.log('Test error sent to Sentry successfully!');
+    console.log("Test error sent to Sentry successfully!");
   }
 
   private getEnvironment(): string {
