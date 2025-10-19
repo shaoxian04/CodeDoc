@@ -116,13 +116,22 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          npm install -g @vscode/vsce
+          npm install -g @vscode/vsce@2.32.0
 
       - name: Compile TypeScript
         run: npm run compile
 
       - name: Package extension
         run: npm run package
+
+      - name: Debug publisher info
+        run: |
+          echo "VSCE version:"
+          vsce --version
+          echo "Package.json publisher:"
+          grep -o '"publisher": "[^"]*"' package.json
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
       - name: Publish to VS Code Marketplace
         run: vsce publish --packagePath *.vsix
