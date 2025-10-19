@@ -4,10 +4,12 @@ import { ChatAgent } from "./chat_agent";
 import { AgentContext, AgentResponse } from "./types";
 import { ProjectStructure } from "../service/java_parser";
 import { MCPService, AgentMessage } from "./mcp_service";
+import { SentryService } from "../service/sentry_service";
 
 export class WorkflowOrchestrator {
     private documentationAgent: DocumentationAgent;
     private visualizationAgent: VisualizationAgent;
+    private sentry = SentryService.getInstance();
     private chatAgent: ChatAgent;
     private mcpService: MCPService;
 

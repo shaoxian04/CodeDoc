@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ProjectStructure } from '../service/java_parser';
 import { marked } from 'marked';
+import { SentryService } from '../service/sentry_service';
 
 export class MainViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'codedoc.mainView';
@@ -16,8 +17,12 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         state: 'initial'
     };
 
+    private sentry = SentryService.getInstance();
+
     constructor(private readonly _extensionUri: vscode.Uri) {
         console.log('MainViewProvider constructor called');
+        this.sentry.addBreadcrumb('MainViewProvider initialized', 'ui');
+        
         // Restore cached state
         if (MainViewProvider._cachedProjectStructure) {
             console.log('Restoring cached project structure with', MainViewProvider._cachedProjectStructure.classes.length, 'classes');
@@ -25,6 +30,10 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             this._isAnalysisStarted = MainViewProvider._cachedAnalysisState.started;
             this._isAnalysisCompleted = MainViewProvider._cachedAnalysisState.completed;
             this._webViewState = MainViewProvider._cachedAnalysisState.state as any;
+            
+            this.sentry.addBreadcrumb('Cached project structure restored', 'ui', {
+                classCount: MainViewProvider._cachedProjectStructure.classes.length
+            });
         } else {
             console.log('No cached project structure found');
         }

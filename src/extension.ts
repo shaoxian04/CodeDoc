@@ -3,6 +3,7 @@ import { MainViewProvider } from "./views/main_provider";
 import { JavaParser, ProjectStructure } from "./service/java_parser";
 import { OpenAIService } from "./service/openai_service";
 import { WorkflowOrchestrator } from "./agents/workflow_orchestrator";
+import { SentryService } from "./service/sentry_service";
 
 import * as cp from "child_process";
 import * as fs from "fs";
@@ -10,12 +11,18 @@ import * as fs from "fs";
 export function activate(context: vscode.ExtensionContext) {
   console.log("CodeDoc extension is now active!");
 
+  // Initialize Sentry for error monitoring
+  const sentry = SentryService.getInstance();
+  sentry.initialize(context);
+  sentry.addBreadcrumb('Extension activation started', 'lifecycle');
+
   console.log("CodeDoc extension activation started");
 
-  const javaParser = new JavaParser();
-  const openaiService = new OpenAIService();
-  const mainProvider = new MainViewProvider(context.extensionUri);
-  const workflowOrchestrator = new WorkflowOrchestrator();
+  try {
+    const javaParser = new JavaParser();
+    const openaiService = new OpenAIService();
+    const mainProvider = new MainViewProvider(context.extensionUri);
+    const workflowOrchestrator = new WorkflowOrchestrator();
 
   console.log("CodeDoc services initialized");
 
@@ -52,6 +59,8 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand("codedoc.generateDocs", async () => {
       console.log("codedoc.generateDocs command executed");
+      sentry.addBreadcrumb('Generate docs command executed', 'user_action');
+      
       try {
         // Check if API key is configured
         const config = vscode.workspace.getConfiguration("codedoc");
@@ -91,6 +100,11 @@ export function activate(context: vscode.ExtensionContext) {
           );
         }
       } catch (error) {
+        sentry.captureException(error as Error, {
+          context: 'generate_docs_command',
+          timestamp: new Date().toISOString()
+        });
+
         if (
           error instanceof Error &&
           error.message.includes("Client is not running")
@@ -1350,17 +1364,42 @@ export function activate(context: vscode.ExtensionContext) {
 
   console.log("CodeDoc extension activation completed");
 
-  // Start Git remote poller to notify about remote updates
-  try {
-    const gitPoller = startGitRemotePoller();
-    context.subscriptions.push({ dispose: () => gitPoller.stop() });
-  } catch (e) {
-    console.error("Failed to start git poller", e);
+    // Start Git remote poller to notify about remote updates
+    try {
+      const gitPoller = startGitRemotePoller();
+      context.subscriptions.push({ dispose: () => gitPoller.stop() });
+    } catch (e) {
+      console.error("Failed to start git poller", e);
+      sentry.captureException(e as Error, { context: 'git_poller_initialization' });
+    }
+
+    sentry.addBreadcrumb('Extension activation completed successfully', 'lifecycle');
+    console.log("CodeDoc services initialized successfully");
+
+  } catch (error) {
+    console.error("Failed to activate CodeDoc extension:", error);
+    sentry.captureException(error as Error, {
+      context: 'extension_activation',
+      timestamp: new Date().toISOString()
+    });
+    
+    vscode.window.showErrorMessage(
+      "Failed to activate CodeDoc extension. Please check the console for details."
+    );
+    throw error;
   }
 }
 
 export function deactivate() {
   console.log("CodeDoc extension is deactivated");
+  
+  const sentry = SentryService.getInstance();
+  sentry.addBreadcrumb('Extension deactivated', 'lifecycle');
+  
+  // Flush any pending Sentry events before deactivation
+  sentry.flush().catch(error => {
+    console.error("Failed to flush Sentry events:", error);
+  });
 }
 
 async function showConfigurationQuickPick(): Promise<boolean> {

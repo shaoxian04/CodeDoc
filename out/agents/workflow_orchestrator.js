@@ -5,9 +5,11 @@ const documentation_agen_1 = require("./documentation_agen");
 const visualization_agent_1 = require("./visualization_agent");
 const chat_agent_1 = require("./chat_agent");
 const mcp_service_1 = require("./mcp_service");
+const sentry_service_1 = require("../service/sentry_service");
 class WorkflowOrchestrator {
     documentationAgent;
     visualizationAgent;
+    sentry = sentry_service_1.SentryService.getInstance();
     chatAgent;
     mcpService;
     constructor() {

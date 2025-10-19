@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MainViewProvider = void 0;
 const vscode = __importStar(require("vscode"));
 const marked_1 = require("marked");
+const sentry_service_1 = require("../service/sentry_service");
 class MainViewProvider {
     _extensionUri;
     static viewType = 'codedoc.mainView';
@@ -50,9 +51,11 @@ class MainViewProvider {
         completed: false,
         state: 'initial'
     };
+    sentry = sentry_service_1.SentryService.getInstance();
     constructor(_extensionUri) {
         this._extensionUri = _extensionUri;
         console.log('MainViewProvider constructor called');
+        this.sentry.addBreadcrumb('MainViewProvider initialized', 'ui');
         // Restore cached state
         if (MainViewProvider._cachedProjectStructure) {
             console.log('Restoring cached project structure with', MainViewProvider._cachedProjectStructure.classes.length, 'classes');
@@ -60,6 +63,9 @@ class MainViewProvider {
             this._isAnalysisStarted = MainViewProvider._cachedAnalysisState.started;
             this._isAnalysisCompleted = MainViewProvider._cachedAnalysisState.completed;
             this._webViewState = MainViewProvider._cachedAnalysisState.state;
+            this.sentry.addBreadcrumb('Cached project structure restored', 'ui', {
+                classCount: MainViewProvider._cachedProjectStructure.classes.length
+            });
         }
         else {
             console.log('No cached project structure found');

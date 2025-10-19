@@ -39,11 +39,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OpenAIService = void 0;
 const openai_1 = __importDefault(require("openai"));
 const vscode = __importStar(require("vscode"));
+const sentry_service_1 = require("./sentry_service");
 class OpenAIService {
     openai = null;
     currentModel = 'gpt-4';
     maxTokens = 2000;
     temperature = 0.3;
+    sentry = sentry_service_1.SentryService.getInstance();
     constructor() {
     }
     async initializeOpenAI() {
@@ -67,10 +69,16 @@ class OpenAIService {
         }
     }
     async generateClassDocumentation(javaClass, relatedClasses = []) {
-        await this.initializeOpenAI();
-        this.ensureInitialized();
-        const prompt = this.createClassDocumentationPrompt(javaClass, relatedClasses);
+        const transaction = this.sentry.startTransaction('openai.generateClassDocumentation', 'ai_generation');
+        this.sentry.addBreadcrumb('Starting class documentation generation', 'openai', {
+            className: javaClass.name,
+            relatedClassesCount: relatedClasses.length,
+            model: this.currentModel
+        });
         try {
+            await this.initializeOpenAI();
+            this.ensureInitialized();
+            const prompt = this.createClassDocumentationPrompt(javaClass, relatedClasses);
             const response = await this.openai.chat.completions.create({
                 model: this.currentModel,
                 messages: [
@@ -86,11 +94,28 @@ class OpenAIService {
                 max_tokens: this.maxTokens,
                 temperature: this.temperature
             });
-            return response.choices[0]?.message?.content || 'No documentation generated';
+            const result = response.choices[0]?.message?.content || 'No documentation generated';
+            this.sentry.addBreadcrumb('Class documentation generated successfully', 'openai', {
+                className: javaClass.name,
+                responseLength: result.length,
+                tokensUsed: response.usage?.total_tokens
+            });
+            transaction?.setStatus('ok');
+            return result;
         }
         catch (error) {
             console.error('OpenAI API error:', error);
+            this.sentry.captureException(error, {
+                context: 'openai_class_documentation',
+                className: javaClass.name,
+                model: this.currentModel,
+                maxTokens: this.maxTokens
+            });
+            transaction?.setStatus('internal_error');
             throw new Error('Failed to generate documentation. Please check your API key and try again.');
+        }
+        finally {
+            transaction?.finish();
         }
     }
     async generateProjectOverview(structure) {
