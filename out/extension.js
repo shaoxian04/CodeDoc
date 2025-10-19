@@ -601,6 +601,12 @@ function activate(context) {
                 // Note: We don't need to reinitialize the workflow orchestrator as it uses the config at runtime
             }
         }));
+        // Test command for Sentry integration
+        context.subscriptions.push(vscode.commands.registerCommand("codedoc.testSentry", () => {
+            console.log("codedoc.testSentry command executed");
+            sentry.sendTestError();
+            vscode.window.showInformationMessage("Test error sent to Sentry! Check your Sentry dashboard in a few moments.");
+        }));
         context.subscriptions.push(vscode.commands.registerCommand("codedoc.generateClassDocs", async () => {
             console.log("codedoc.generateClassDocs command executed");
             try {

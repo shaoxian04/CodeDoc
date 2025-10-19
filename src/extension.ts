@@ -769,6 +769,17 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  // Test command for Sentry integration
+  context.subscriptions.push(
+    vscode.commands.registerCommand("codedoc.testSentry", () => {
+      console.log("codedoc.testSentry command executed");
+      sentry.sendTestError();
+      vscode.window.showInformationMessage(
+        "Test error sent to Sentry! Check your Sentry dashboard in a few moments."
+      );
+    })
+  );
+
   context.subscriptions.push(
     vscode.commands.registerCommand("codedoc.generateClassDocs", async () => {
       console.log("codedoc.generateClassDocs command executed");

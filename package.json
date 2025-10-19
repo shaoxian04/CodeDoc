@@ -41,6 +41,11 @@
         "command": "codedoc.configureExtension",
         "title": "Configure CodeDoc Settings",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "codedoc.testSentry",
+        "title": "CodeDoc: Test Sentry Integration",
+        "icon": "$(bug)"
       }
     ],
     "views": {
