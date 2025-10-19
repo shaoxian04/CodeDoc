@@ -53,6 +53,7 @@ jobs:
         PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true
       
     - name: Check if code is formatted
+      shell: bash
       run: |
         npm run lint
         if [ -n "$(git status --porcelain)" ]; then

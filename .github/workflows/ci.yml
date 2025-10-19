@@ -47,6 +47,7 @@ jobs:
         run: npm run compile
 
       - name: Package extension
+        shell: bash
         run: |
           echo "Current directory contents:"
           ls -la

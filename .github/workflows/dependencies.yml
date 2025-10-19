@@ -23,12 +23,14 @@ jobs:
         cache: 'npm'
         
     - name: Update dependencies
+      shell: bash
       run: |
         npm update
         npm audit fix --force || true
         
     - name: Check for changes
       id: verify-changed-files
+      shell: bash
       run: |
         if git diff --quiet && git diff --cached --quiet; then
           echo "changed=false" >> $GITHUB_OUTPUT
