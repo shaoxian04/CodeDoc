@@ -25,15 +25,15 @@ jobs:
     - name: Update dependencies
       run: |
         npm update
-        npm audit fix --force
+        npm audit fix --force || true
         
     - name: Check for changes
       id: verify-changed-files
       run: |
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "changed=true" >> $GITHUB_OUTPUT
-        else
+        if git diff --quiet && git diff --cached --quiet; then
           echo "changed=false" >> $GITHUB_OUTPUT
+        else
+          echo "changed=true" >> $GITHUB_OUTPUT
         fi
         
     - name: Create Pull Request
