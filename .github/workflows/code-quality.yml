@@ -55,9 +55,13 @@ jobs:
     - name: Check if code is formatted
       shell: bash
       run: |
-        npm run lint
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "Code is not properly formatted. Please run 'npm run lint:fix'"
-          git diff
+        # Run lint fix to see if any changes are needed
+        npm run lint:fix
+        # Only check for changes in source files, ignore node_modules
+        if [ -n "$(git status --porcelain src/)" ]; then
+          echo "Source code is not properly formatted. Please run 'npm run lint:fix'"
+          git diff src/
           exit 1
+        else
+          echo "Code is properly formatted"
         fi
