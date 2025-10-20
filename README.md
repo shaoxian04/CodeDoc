@@ -1,6 +1,7 @@
 # CodeDocX
 
 Smart documentation assistant with AI chatbot and code visualization for VS Code.
+Link: https://marketplace.visualstudio.com/items?itemName=NP.codedocx
 
 ## Track 3 Industry Collaboration - Fix the Docs: Smarter, Faster, Maintainable Documentation for the Real World by iFAST
 In real-world tech environments, documentation is a critical but broken part of the software development lifecycle.
