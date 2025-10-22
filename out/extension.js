@@ -191,8 +191,9 @@ function activate(context) {
                     // Always include root README if present
                     const rootReadme = mdFiles.find((u) => u.fsPath.toLowerCase().endsWith(path.sep + "readme.md"));
                     if (rootReadme &&
-                        !related.find((u) => u.fsPath === rootReadme.fsPath))
+                        !related.find((u) => u.fsPath === rootReadme.fsPath)) {
                         related.push(rootReadme);
+                    }
                     if (related.length)
                         filesToCheck = related;
                 }
@@ -313,8 +314,9 @@ function activate(context) {
                             const repoLatest = await execGit("log -1 --format=%ct", workspaceRoot).catch(() => "");
                             if (repoLatest) {
                                 const sec = parseInt(repoLatest.trim(), 10);
-                                if (!isNaN(sec))
+                                if (!isNaN(sec)) {
                                     latestCodeCommit = Math.max(latestCodeCommit, sec * 1000);
+                                }
                             }
                         }
                         // Heuristic: detect if markdown contains tokens that lack descriptions
