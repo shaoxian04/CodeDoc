@@ -1,43 +1,44 @@
 # Version Management Guide
 
-This project uses manual version control with automated publishing.
+This project uses local version management and publishing.
 
-## Manual Version Management (Recommended)
+## Quick Release (Recommended)
 
-### Local Version Bumping
+### One-Command Release
 ```bash
-# Patch version (1.0.4 → 1.0.5) - Bug fixes
-npm run version:patch
+# Patch release (1.0.3 → 1.0.4) - Bug fixes
+npm run release patch
 
-# Minor version (1.0.4 → 1.1.0) - New features
-npm run version:minor
+# Minor release (1.0.3 → 1.1.0) - New features  
+npm run release minor
 
-# Major version (1.0.4 → 2.0.0) - Breaking changes
-npm run version:major
+# Major release (1.0.3 → 2.0.0) - Breaking changes
+npm run release major
 ```
 
-These commands will:
-1. Update the version in `package.json`
-2. Create a git commit with the version bump
-3. Create a git tag (e.g., `v1.0.5`)
-4. Push the commit and tag to GitHub
+This single command will:
+1. ✅ Bump the version in `package.json`
+2. ✅ Create a git commit and tag
+3. ✅ Push to GitHub
+4. ✅ Compile TypeScript
+5. ✅ Publish to VS Code Marketplace
 
-### Publishing to Marketplace
+### Alternative Commands
 
-After bumping the version locally:
+```bash
+# Just version bump and push (no publish)
+npm run version:patch
+npm run version:minor  
+npm run version:major
 
-1. **Create a GitHub Release**:
-   - Go to your GitHub repository
-   - Click "Releases" → "Create a new release"
-   - Select the tag that was just created (e.g., `v1.0.5`)
-   - Add release notes describing the changes
-   - Click "Publish release"
+# Full release with separate steps
+npm run release:patch
+npm run release:minor
+npm run release:major
 
-2. **Automatic Publishing**:
-   - GitHub Actions will automatically trigger
-   - Compiles and packages the extension
-   - Publishes to VS Code Marketplace
-   - Publishes to Open VSX Registry
+# Quick patch publish (no version bump)
+npm run quick-release
+```
 
 ## Version Types
 

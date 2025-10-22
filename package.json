@@ -3,7 +3,7 @@
   "displayName": "CodeDocX",
   "description": "AI-powered code documentation and visualization for Java projects.",
   "version": "1.0.5",
-  "publisher": "nullpointer04",
+  "publisher": "NP",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -135,7 +135,12 @@
     "publish": "vsce publish",
     "version:patch": "npm version patch && git push && git push --tags",
     "version:minor": "npm version minor && git push && git push --tags",
-    "version:major": "npm version major && git push && git push --tags"
+    "version:major": "npm version major && git push && git push --tags",
+    "release:patch": "npm run version:patch && npm run compile && vsce publish",
+    "release:minor": "npm run version:minor && npm run compile && vsce publish",
+    "release:major": "npm run version:major && npm run compile && vsce publish",
+    "quick-release": "npm run compile && vsce publish patch",
+    "release": "node release.js"
   },
   "devDependencies": {
     "@types/glob": "^8.0.0",
