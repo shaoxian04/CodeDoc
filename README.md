@@ -1,15 +1,19 @@
 # CodeDocX
 
 Smart documentation assistant with AI chatbot and code visualization for VS Code.
-Link: https://marketplace.visualstudio.com/items?itemName=NP.codedocx
 
-## Track 3 Industry Collaboration - Fix the Docs: Smarter, Faster, Maintainable Documentation for the Real World by iFAST
-In real-world tech environments, documentation is a critical but broken part of the software development lifecycle.
-- Writing it is slow, repetitive, and often skipped.
-- Reading it is painful and time-consuming, especially for new joiners.
-- Maintaining it is impractical in fast-changing systems — documentation quickly becomes outdated, misleading, or irrelevant.
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/NP.codedocx)](https://marketplace.visualstudio.com/items?itemName=NP.codedocx)
+[![Downloads](https://img.shields.io/visual-studio-marketplace/d/NP.codedocx)](https://marketplace.visualstudio.com/items?itemName=NP.codedocx)
 
-This leads to onboarding delays, wasted engineering time, and avoidable bugs — all due to poor or outdated docs.
+## Overview
+
+CodeDocX addresses the critical documentation challenges in modern software development:
+
+- **Writing**: Slow, repetitive, and often skipped
+- **Reading**: Painful and time-consuming, especially for new team members  
+- **Maintaining**: Impractical in fast-changing systems — docs quickly become outdated
+
+This leads to onboarding delays, wasted engineering time, and avoidable bugs due to poor documentation.
 
 ## Our Solution - CodeDocX
 
