@@ -106,6 +106,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -117,6 +119,28 @@ jobs:
         run: |
           npm ci
           npm install -g @vscode/vsce@2.32.0
+
+      - name: Extract version from release tag
+        id: get_version
+        run: |
+          # Remove 'v' prefix if present (e.g., v1.2.3 -> 1.2.3)
+          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION=${VERSION#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Update package.json version
+        run: |
+          npm version ${{ steps.get_version.outputs.version }} --no-git-tag-version
+          echo "Updated package.json to version ${{ steps.get_version.outputs.version }}"
+
+      - name: Commit version bump
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add package.json package-lock.json
+          git commit -m "Bump version to ${{ steps.get_version.outputs.version }}" || exit 0
+          git push
 
       - name: Compile TypeScript
         run: npm run compile
@@ -130,6 +154,8 @@ jobs:
           vsce --version
           echo "Package.json publisher:"
           grep -o '"publisher": "[^"]*"' package.json
+          echo "Package.json version:"
+          grep -o '"version": "[^"]*"' package.json
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
