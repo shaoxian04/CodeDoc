@@ -3,7 +3,7 @@
   "displayName": "CodeDocX",
   "description": "AI-powered code documentation and visualization for Java projects.",
   "version": "1.0.5",
-  "publisher": "NP",
+  "publisher": "nullpointer04",
   "engines": {
     "vscode": "^1.74.0"
   },
