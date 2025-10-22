@@ -1,55 +1,43 @@
 # Version Management Guide
 
-This project uses automated version bumping and publishing workflows.
+This project uses manual version control with automated publishing.
 
-## Automatic Publishing (Recommended)
+## Manual Version Management (Recommended)
 
-### Method 1: GitHub Releases (Fully Automated)
-1. Go to your GitHub repository
-2. Click "Releases" → "Create a new release"
-3. Create a new tag (e.g., `v1.0.5`, `v1.1.0`, `v2.0.0`)
-4. Fill in release notes
-5. Click "Publish release"
-
-**What happens automatically:**
-- GitHub Actions extracts the version from the tag
-- Updates `package.json` with the new version
-- Commits the version bump
-- Compiles and packages the extension
-- Publishes to VS Code Marketplace
-- Publishes to Open VSX Registry
-
-### Method 2: Manual Workflow Trigger
-1. Go to GitHub → Actions → "Version Bump and Release"
-2. Click "Run workflow"
-3. Select version bump type (patch/minor/major)
-4. Choose whether to create a GitHub release
-5. Click "Run workflow"
-
-## Local Development
-
-### Quick Version Bumping
+### Local Version Bumping
 ```bash
-# Patch version (1.0.4 → 1.0.5)
-npm run release:patch
-
-# Minor version (1.0.4 → 1.1.0)
-npm run release:minor
-
-# Major version (1.0.4 → 2.0.0)
-npm run release:major
-```
-
-### Manual Version Control
-```bash
-# Just bump version locally (no git operations)
+# Patch version (1.0.4 → 1.0.5) - Bug fixes
 npm run version:patch
-npm run version:minor
-npm run version:major
 
-# Then manually commit and push
-git push && git push --tags
+# Minor version (1.0.4 → 1.1.0) - New features
+npm run version:minor
+
+# Major version (1.0.4 → 2.0.0) - Breaking changes
+npm run version:major
 ```
+
+These commands will:
+1. Update the version in `package.json`
+2. Create a git commit with the version bump
+3. Create a git tag (e.g., `v1.0.5`)
+4. Push the commit and tag to GitHub
+
+### Publishing to Marketplace
+
+After bumping the version locally:
+
+1. **Create a GitHub Release**:
+   - Go to your GitHub repository
+   - Click "Releases" → "Create a new release"
+   - Select the tag that was just created (e.g., `v1.0.5`)
+   - Add release notes describing the changes
+   - Click "Publish release"
+
+2. **Automatic Publishing**:
+   - GitHub Actions will automatically trigger
+   - Compiles and packages the extension
+   - Publishes to VS Code Marketplace
+   - Publishes to Open VSX Registry
 
 ## Version Types
 
@@ -65,6 +53,5 @@ Make sure you have these GitHub secrets configured:
 
 ## Workflow Files
 
-- `.github/workflows/ci.yml`: Main CI/CD pipeline with automatic publishing
-- `.github/workflows/version-bump.yml`: Manual version bumping workflow
+- `.github/workflows/ci.yml`: Main CI/CD pipeline with publishing on release
 - `.github/workflows/code-quality.yml`: Code quality checks
