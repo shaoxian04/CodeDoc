@@ -16,7 +16,7 @@
     "onStartupFinished"
   ],
   "icon": "icons/CodeDocIcon.png",
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
@@ -123,7 +123,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run package-extension",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "test": "echo \"Tests require VS Code environment - skipping in CI\" && exit 0",
@@ -140,7 +140,10 @@
     "release:minor": "npm run version:minor && npm run compile && vsce publish",
     "release:major": "npm run version:major && npm run compile && vsce publish",
     "quick-release": "npm run compile && vsce publish patch",
-    "release": "node release.js"
+    "release": "node release.js",
+    "webpack": "webpack --mode development",
+    "webpack-dev": "webpack --mode development --watch",
+    "package-extension": "webpack --mode production --devtool hidden-source-map"
   },
   "devDependencies": {
     "@types/glob": "^8.0.0",
@@ -154,7 +157,10 @@
     "eslint": "^8.0.0",
     "glob": "^8.0.0",
     "mocha": "^10.0.0",
-    "typescript": "^5.9.2"
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.2",
+    "webpack": "^5.102.1",
+    "webpack-cli": "^6.0.1"
   },
   "dependencies": {
     "@langchain/openai": "^0.3.0",

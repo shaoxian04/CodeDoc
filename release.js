@@ -33,9 +33,9 @@ try {
     execSync('git push', { stdio: 'inherit' });
     execSync('git push --tags', { stdio: 'inherit' });
 
-    // Step 3: Compile TypeScript
-    console.log('🔨 Compiling TypeScript...');
-    execSync('npm run compile', { stdio: 'inherit' });
+    // Step 3: Bundle extension with dependencies
+    console.log('📦 Bundling extension with dependencies...');
+    execSync('npm run package-extension', { stdio: 'inherit' });
 
     // Step 4: Publish to marketplace
     console.log('🌐 Publishing to VS Code Marketplace...');

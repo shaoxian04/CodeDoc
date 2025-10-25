@@ -2,9 +2,12 @@
 src/**
 tsconfig.json
 .eslintrc.json
+webpack.config.js
+
+# Build outputs (keep dist, exclude out)
+out/**
 
 # Test files
-out/test/**
 
 # Development files
 .vscode/**
