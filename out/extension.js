@@ -491,9 +491,19 @@ function activate(context) {
                             path: vscode.workspace.asRelativePath(f.uri),
                             snippet: f.snippet,
                         }));
+                        // Show progress for stale documentation update
+                        vscode.window.withProgress({
+                            location: vscode.ProgressLocation.Notification,
+                            title: `Updating stale documentation: ${relPath}`,
+                            cancellable: false
+                        }, async (progress) => {
+                            progress.report({ message: "Analyzing documentation..." });
+                            return Promise.resolve();
+                        });
                         const respForFile = await workflowOrchestrator.updateMarkdownFile(structure, existing, relatedFilesForAgent, relPath);
                         if (!respForFile.success || !respForFile.data) {
                             console.warn("[codedoc.syncDocs] failed to update suggestion for", relPath, respForFile.error);
+                            vscode.window.showWarningMessage(`Failed to update documentation for ${relPath}: ${respForFile.error}`);
                             continue;
                         }
                         const suggested = respForFile.data;

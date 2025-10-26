@@ -593,20 +593,65 @@ export function activate(context: vscode.ExtensionContext) {
                 path: vscode.workspace.asRelativePath(f.uri),
                 snippet: f.snippet,
               }));
-              const respForFile = await workflowOrchestrator.updateMarkdownFile(
-                structure,
-                existing,
-                relatedFilesForAgent,
-                relPath
-              );
+              // Enhanced progress tracking for stale documentation update
+              const respForFile = await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: `🔄 Updating stale documentation`,
+                cancellable: false
+              }, async (progress) => {
+                progress.report({ 
+                  message: `Analyzing ${relPath}...`,
+                  increment: 20 
+                });
+                
+                // Add more context to the update process
+                const enhancedRelatedFiles = topFiles.map((f) => ({
+                  path: vscode.workspace.asRelativePath(f.uri),
+                  snippet: f.snippet,
+                  // Add file metadata for better context
+                  lastModified: f.uri.fsPath,
+                  relevanceScore: f.score || 0
+                }));
+
+                progress.report({ 
+                  message: `Generating enhanced documentation...`,
+                  increment: 40 
+                });
+
+                const result = await workflowOrchestrator.updateMarkdownFile(
+                  structure,
+                  existing,
+                  enhancedRelatedFiles,
+                  relPath
+                );
+
+                progress.report({ 
+                  message: `Finalizing documentation...`,
+                  increment: 30 
+                });
+
+                return result;
+              });
+
               if (!respForFile.success || !respForFile.data) {
                 console.warn(
-                  "[codedoc.syncDocs] failed to update suggestion for",
+                  "[codedoc.syncDocs] ❌ Failed to update suggestion for",
                   relPath,
                   respForFile.error
                 );
+                vscode.window.showErrorMessage(
+                  `❌ Failed to update documentation for ${relPath}`,
+                  { detail: respForFile.error }
+                );
                 continue;
               }
+
+              // Show success feedback
+              console.log(`[codedoc.syncDocs] ✅ Successfully updated documentation for ${relPath}`);
+              vscode.window.showInformationMessage(
+                `✅ Enhanced documentation updated for ${relPath}`,
+                { modal: false }
+              );
               const suggested = respForFile.data as string;
 
               const sim = similarity(existing, suggested);

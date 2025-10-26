@@ -792,45 +792,544 @@ DIAGRAM GUIDELINES:
 
     private async updateMarkdownFile(structure: ProjectStructure, existing: string, relatedFiles: Array<{path:string, snippet:string}> = [], relPath?: string): Promise<string> {
         try {
-            const model = this.initializeModel();
-            let finalPrompt = `
-                You are given an existing markdown file and several related code snippets. Update the markdown only where it is inconsistent with the code. Preserve headings and formatting when possible. Keep changes minimal and focused.
-
-                File path: ${relPath || 'unknown'}
-                Existing markdown (begin):\n{existing}\nExisting markdown (end)
-
-                Related code snippets (begin):\n{snippets}\nRelated code snippets (end)
-
-                Guidelines:
-                1. Only modify sections that are outdated or incorrect relative to the code.
-                2. Preserve examples and formatting where possible; update only necessary descriptions.
-                3. If the markdown is missing a short usage example, you may add a concise example based on the code.
-                4. Return the full updated markdown content only.
-            `;
-
-            const snippets = relatedFiles.map(r => `---\nfile: ${r.path}\n\n${r.snippet}\n---`).join('\n');
-
-            const promptTemplate = PromptTemplate.fromTemplate(finalPrompt);
-            const chain = promptTemplate.pipe(model).pipe(this.outputParser);
-            const result = await chain.invoke({ existing: existing.slice(0, 3000), snippets });
-            if (typeof result === 'string') {
-                let s = result.trim();
-                const fullFence = s.match(/^```[^\n]*\n([\s\S]*)\n```$/);
-                if (fullFence && fullFence[1]) {
-                    return fullFence[1].trim();
-                }
-                s = s.replace(/^```[^\n]*\n/, '');
-                s = s.replace(/\n```\s*$/, '');
-                return s.trim();
+            console.log(`[DocumentationAgent] Starting enhanced stale documentation update for: ${relPath}`);
+            
+            // Step 1: Advanced class identification with multiple strategies
+            const targetClass = await this.identifyTargetClassAdvanced(existing, structure, relatedFiles, relPath);
+            
+            if (targetClass) {
+                console.log(`[DocumentationAgent] ✅ Identified target class: ${targetClass.name} for ${relPath}`);
+                
+                // Step 2: Analyze what type of documentation this is
+                const docType = this.analyzeDocumentationType(existing, targetClass);
+                console.log(`[DocumentationAgent] 📋 Documentation type: ${docType}`);
+                
+                // Step 3: Use the appropriate generation strategy
+                return await this.regenerateDocumentationIntelligently(
+                    targetClass, 
+                    structure, 
+                    existing,
+                    relPath,
+                    docType
+                );
+            } else {
+                // Enhanced fallback: Try to create documentation from scratch if we can identify related classes
+                console.log(`[DocumentationAgent] ⚠️ Could not identify target class, attempting smart reconstruction`);
+                return await this.smartDocumentationReconstruction(existing, structure, relatedFiles, relPath);
             }
-            return result;
         } catch (error) {
-            if (error instanceof Error && error.message.includes('API key not configured')) {
+            if (error instanceof Error && error.message.includes("API key not configured")) {
                 throw error;
             }
+            console.error(`[DocumentationAgent] ❌ Failed to update markdown file: ${error}`);
             throw new Error(`Failed to update markdown file: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
+
+    private async identifyTargetClassAdvanced(
+        existing: string, 
+        structure: ProjectStructure, 
+        relatedFiles: Array<{path:string, snippet:string}>, 
+        relPath?: string
+    ): Promise<any | null> {
+        console.log(`[DocumentationAgent] 🔍 Starting advanced class identification...`);
+        
+        // Strategy 1: Extract from markdown headers and content
+        const classFromMarkdown = this.extractClassFromMarkdown(existing);
+        if (classFromMarkdown) {
+            const targetClass = structure.classes.find(c => 
+                c.name === classFromMarkdown || 
+                c.name.endsWith(classFromMarkdown) ||
+                classFromMarkdown.includes(c.name)
+            );
+            if (targetClass) {
+                console.log(`[DocumentationAgent] ✅ Found class from markdown: ${targetClass.name}`);
+                return targetClass;
+            }
+        }
+
+        // Strategy 2: Match by file path
+        if (relPath) {
+            const classFromPath = this.extractClassFromPath(relPath, structure);
+            if (classFromPath) {
+                console.log(`[DocumentationAgent] ✅ Found class from path: ${classFromPath.name}`);
+                return classFromPath;
+            }
+        }
+
+        // Strategy 3: Analyze related files to find the main class
+        const classFromRelatedFiles = this.extractClassFromRelatedFiles(relatedFiles, structure);
+        if (classFromRelatedFiles) {
+            console.log(`[DocumentationAgent] ✅ Found class from related files: ${classFromRelatedFiles.name}`);
+            return classFromRelatedFiles;
+        }
+
+        // Strategy 4: Use AI to identify the class from content
+        const classFromAI = await this.identifyClassUsingAI(existing, structure);
+        if (classFromAI) {
+            console.log(`[DocumentationAgent] ✅ Found class using AI: ${classFromAI.name}`);
+            return classFromAI;
+        }
+
+        console.log(`[DocumentationAgent] ❌ Could not identify target class using any strategy`);
+        return null;
+    }
+
+    private extractClassFromMarkdown(existing: string): string | null {
+        const classNamePatterns = [
+            /^#\s+(.+?)(?:\s+Class|\s+Documentation)?$/m,     // # ClassName or # ClassName Class
+            /^##\s+(.+?)(?:\s+Class|\s+Overview)?$/m,         // ## ClassName or ## ClassName Class  
+            /Class:\s*`?([A-Z][a-zA-Z0-9_]+)`?/,              // Class: ClassName
+            /`([A-Z][a-zA-Z0-9_]+)`\s+class/i,                // `ClassName` class
+            /\*\*([A-Z][a-zA-Z0-9_]+)\*\*/,                   // **ClassName**
+            /File:\s*.*\/([A-Z][a-zA-Z0-9_]+)\.java/,         // File: .../ClassName.java
+            /Package:\s*.*\.([A-Z][a-zA-Z0-9_]+)/,            // Package: com.example.ClassName
+            /^([A-Z][a-zA-Z0-9_]+)\s*$/m                      // Standalone ClassName
+        ];
+
+        for (const pattern of classNamePatterns) {
+            const match = existing.match(pattern);
+            if (match) {
+                const className = match[1].trim();
+                if (className && /^[A-Z][a-zA-Z0-9_]*$/.test(className)) {
+                    return className;
+                }
+            }
+        }
+        return null;
+    }
+
+    private extractClassFromPath(relPath: string, structure: ProjectStructure): any | null {
+        // Extract class name from file path
+        const pathMatch = relPath.match(/([A-Z][a-zA-Z0-9_]+)(?:\.md|\.markdown)?$/);
+        if (pathMatch) {
+            const className = pathMatch[1];
+            return structure.classes.find(c => c.name === className);
+        }
+
+        // Try to match by similar file paths
+        return structure.classes.find(c => {
+            if (!c.filePath) return false;
+            const classFileName = c.filePath.split('/').pop()?.replace('.java', '');
+            const docFileName = relPath.split('/').pop()?.replace(/\.(md|markdown)$/, '');
+            return classFileName === docFileName;
+        });
+    }
+
+    private extractClassFromRelatedFiles(relatedFiles: Array<{path:string, snippet:string}>, structure: ProjectStructure): any | null {
+        for (const file of relatedFiles) {
+            // Extract class name from Java file path
+            const javaClassMatch = file.path.match(/([A-Z][a-zA-Z0-9_]+)\.java$/);
+            if (javaClassMatch) {
+                const className = javaClassMatch[1];
+                const targetClass = structure.classes.find(c => c.name === className);
+                if (targetClass) {
+                    return targetClass;
+                }
+            }
+
+            // Extract class name from code snippet
+            const classDeclarationMatch = file.snippet.match(/(?:public\s+)?class\s+([A-Z][a-zA-Z0-9_]+)/);
+            if (classDeclarationMatch) {
+                const className = classDeclarationMatch[1];
+                const targetClass = structure.classes.find(c => c.name === className);
+                if (targetClass) {
+                    return targetClass;
+                }
+            }
+        }
+        return null;
+    }
+
+    private async identifyClassUsingAI(existing: string, structure: ProjectStructure): Promise<any | null> {
+        try {
+            const model = this.initializeModel();
+            
+            const classNames = structure.classes.map(c => c.name).join(', ');
+            
+            const identificationPrompt = `
+                Analyze this markdown documentation and identify which Java class it's documenting.
+                
+                Available classes in the project: ${classNames}
+                
+                Markdown content:
+                ---
+                ${existing.substring(0, 1000)}
+                ---
+                
+                Instructions:
+                1. Look for class names, method signatures, annotations, or other indicators
+                2. Return ONLY the exact class name if you can identify it with high confidence
+                3. Return "UNKNOWN" if you cannot identify the class
+                4. Do not explain your reasoning, just return the class name or "UNKNOWN"
+            `;
+
+            const result = await model.invoke(identificationPrompt);
+            const content = typeof result.content === 'string' ? result.content : result.toString();
+            const className = content.trim();
+            
+            if (className !== "UNKNOWN" && structure.classes.find(c => c.name === className)) {
+                return structure.classes.find(c => c.name === className);
+            }
+        } catch (error) {
+            console.warn(`[DocumentationAgent] AI class identification failed:`, error);
+        }
+        return null;
+    }
+
+    private analyzeDocumentationType(existing: string, targetClass: any): 'class' | 'project' | 'mixed' | 'unknown' {
+        const hasClassSpecificContent = /##\s+(Methods?|Fields?|Constructor|Usage|Example)/i.test(existing);
+        const hasProjectContent = /##\s+(Architecture|Overview|Getting Started|Installation)/i.test(existing);
+        const hasClassName = existing.includes(targetClass.name);
+        
+        if (hasClassSpecificContent && hasClassName) return 'class';
+        if (hasProjectContent) return 'project';
+        if (hasClassSpecificContent || hasClassName) return 'mixed';
+        return 'unknown';
+    }
+
+    private async regenerateDocumentationIntelligently(
+        targetClass: any, 
+        structure: ProjectStructure, 
+        existingMarkdown: string,
+        relPath?: string,
+        docType: string = 'class'
+    ): Promise<string> {
+        try {
+            console.log(`[DocumentationAgent] 🔄 Regenerating ${docType} documentation for: ${targetClass.name}`);
+            
+            // Get related classes with better context
+            const relatedClasses = this.findRelatedClassesIntelligently(targetClass, structure);
+            console.log(`[DocumentationAgent] 🔗 Found ${relatedClasses.length} related classes`);
+            
+            // Generate fresh documentation using the full pipeline with enhanced context
+            const newDocumentation = await this.generateClassDocumentation(
+                targetClass, 
+                relatedClasses,
+                `Update existing documentation for ${targetClass.name}. Focus on accuracy and completeness.`
+            );
+
+            // Intelligently preserve user customizations
+            const preservedDocumentation = await this.preserveUserCustomizationsIntelligently(
+                existingMarkdown, 
+                newDocumentation,
+                targetClass,
+                relPath
+            );
+
+            console.log(`[DocumentationAgent] ✅ Successfully regenerated documentation for: ${targetClass.name}`);
+            return preservedDocumentation;
+        } catch (error) {
+            console.warn(`[DocumentationAgent] ❌ Failed to regenerate documentation for ${targetClass.name}:`, error);
+            // Enhanced fallback
+            return await this.enhancedFallbackUpdate(existingMarkdown, targetClass, structure, relPath);
+        }
+    }
+
+    private findRelatedClassesIntelligently(targetClass: any, structure: ProjectStructure): any[] {
+        const relatedClasses = new Set<any>();
+        
+        // Add classes from Spring dependencies
+        if (targetClass.springDependencies) {
+            targetClass.springDependencies.forEach((dep: any) => {
+                const relatedClass = structure.classes.find(c => c.name === dep.type);
+                if (relatedClass) relatedClasses.add(relatedClass);
+            });
+        }
+        
+        // Add classes from inheritance
+        if (targetClass.extends) {
+            const parentClass = structure.classes.find(c => c.name === targetClass.extends);
+            if (parentClass) relatedClasses.add(parentClass);
+        }
+        
+        // Add classes from interfaces
+        if (targetClass.implements) {
+            targetClass.implements.forEach((interfaceName: string) => {
+                const interfaceClass = structure.classes.find(c => c.name === interfaceName);
+                if (interfaceClass) relatedClasses.add(interfaceClass);
+            });
+        }
+        
+        // Add classes from the same package
+        const samePackageClasses = structure.classes.filter(c => 
+            c.package === targetClass.package && c.name !== targetClass.name
+        ).slice(0, 3); // Limit to 3 for performance
+        samePackageClasses.forEach(c => relatedClasses.add(c));
+        
+        // Add classes that depend on this class
+        const dependentClasses = structure.classes.filter(c => 
+            c.springDependencies?.some((dep: any) => dep.type === targetClass.name)
+        ).slice(0, 2);
+        dependentClasses.forEach(c => relatedClasses.add(c));
+        
+        return Array.from(relatedClasses);
+    }
+
+    private async preserveUserCustomizationsIntelligently(
+        existingMarkdown: string, 
+        newDocumentation: string,
+        targetClass: any,
+        relPath?: string
+    ): Promise<string> {
+        try {
+            const model = this.initializeModel();
+            
+            // Analyze what user customizations exist
+            const customizations = this.analyzeUserCustomizations(existingMarkdown);
+            
+            const preservationPrompt = `
+                You are an expert technical writer tasked with intelligently merging existing documentation with newly generated documentation.
+                
+                TARGET CLASS: ${targetClass.name}
+                FILE: ${relPath || 'unknown'}
+                
+                EXISTING DOCUMENTATION (contains user customizations):
+                ---
+                ${existingMarkdown}
+                ---
+
+                NEW GENERATED DOCUMENTATION (contains current technical information):
+                ---
+                ${newDocumentation}
+                ---
+
+                DETECTED USER CUSTOMIZATIONS:
+                ${customizations.map(c => `- ${c.type}: ${c.description}`).join('\n')}
+
+                INTELLIGENT MERGE STRATEGY:
+                1. **Use new documentation as foundation** - It has current technical details
+                2. **Preserve valuable user content**:
+                   - Custom examples and code snippets
+                   - Personal insights and explanations
+                   - Additional sections (Troubleshooting, Tips, etc.)
+                   - Custom links and references
+                3. **Update technical accuracy**:
+                   - Method signatures and parameters
+                   - Annotations and Spring configurations
+                   - Dependencies and relationships
+                4. **Enhance with user knowledge**:
+                   - Merge user examples with generated ones
+                   - Keep user's practical insights
+                   - Preserve domain-specific explanations
+
+                QUALITY REQUIREMENTS:
+                - Maintain professional technical writing style
+                - Ensure all code examples are accurate and current
+                - Keep Spring Boot focus and architectural context
+                - Include proper markdown formatting and links
+                - Balance technical depth with readability
+
+                Return the intelligently merged documentation that combines technical accuracy with user insights.
+            `;
+
+            const result = await model.invoke(preservationPrompt);
+            const content = typeof result.content === 'string' ? result.content : result.toString();
+            
+            return content;
+        } catch (error) {
+            console.warn(`[DocumentationAgent] ❌ Failed to preserve customizations intelligently for ${relPath}:`, error);
+            return newDocumentation;
+        }
+    }
+
+    private analyzeUserCustomizations(existingMarkdown: string): Array<{type: string, description: string}> {
+        const customizations = [];
+        
+        // Check for custom sections
+        const customSections = existingMarkdown.match(/##\s+(Troubleshooting|Tips|Best Practices|Notes|FAQ|Common Issues)/gi);
+        if (customSections) {
+            customizations.push({
+                type: 'Custom Sections',
+                description: `Found custom sections: ${customSections.join(', ')}`
+            });
+        }
+        
+        // Check for custom code examples
+        const codeBlocks = existingMarkdown.match(/```[\s\S]*?```/g);
+        if (codeBlocks && codeBlocks.length > 0) {
+            customizations.push({
+                type: 'Code Examples',
+                description: `Found ${codeBlocks.length} custom code examples`
+            });
+        }
+        
+        // Check for custom links
+        const customLinks = existingMarkdown.match(/\[([^\]]+)\]\(([^)]+)\)/g);
+        if (customLinks && customLinks.length > 0) {
+            customizations.push({
+                type: 'Custom Links',
+                description: `Found ${customLinks.length} custom links`
+            });
+        }
+        
+        // Check for personal notes or comments
+        const personalNotes = existingMarkdown.match(/(?:Note:|Important:|Warning:|Tip:)/gi);
+        if (personalNotes) {
+            customizations.push({
+                type: 'Personal Notes',
+                description: `Found personal annotations: ${personalNotes.join(', ')}`
+            });
+        }
+        
+        return customizations;
+    }
+
+    private async smartDocumentationReconstruction(
+        existing: string, 
+        structure: ProjectStructure, 
+        relatedFiles: Array<{path:string, snippet:string}>, 
+        relPath?: string
+    ): Promise<string> {
+        try {
+            console.log(`[DocumentationAgent] 🔧 Attempting smart reconstruction for: ${relPath}`);
+            
+            // Try to find the most relevant class from related files
+            const candidateClasses = this.findCandidateClasses(relatedFiles, structure);
+            
+            if (candidateClasses.length > 0) {
+                const bestCandidate = candidateClasses[0];
+                console.log(`[DocumentationAgent] 🎯 Using best candidate: ${bestCandidate.name}`);
+                
+                return await this.regenerateDocumentationIntelligently(
+                    bestCandidate,
+                    structure,
+                    existing,
+                    relPath,
+                    'mixed'
+                );
+            } else {
+                // Last resort: enhance the existing documentation with AI
+                return await this.enhanceExistingDocumentationWithAI(existing, structure, relPath);
+            }
+        } catch (error) {
+            console.warn(`[DocumentationAgent] ❌ Smart reconstruction failed:`, error);
+            return await this.enhancedFallbackUpdate(existing, null, structure, relPath);
+        }
+    }
+
+    private findCandidateClasses(relatedFiles: Array<{path:string, snippet:string}>, structure: ProjectStructure): any[] {
+        const candidates = new Map<string, {class: any, score: number}>();
+        
+        for (const file of relatedFiles) {
+            // Score classes based on relevance
+            for (const cls of structure.classes) {
+                if (!candidates.has(cls.name)) {
+                    candidates.set(cls.name, {class: cls, score: 0});
+                }
+                
+                const candidate = candidates.get(cls.name)!;
+                
+                // Score based on file path similarity
+                if (file.path.includes(cls.name)) {
+                    candidate.score += 10;
+                }
+                
+                // Score based on code content
+                if (file.snippet.includes(cls.name)) {
+                    candidate.score += 5;
+                }
+                
+                // Score based on package similarity
+                if (cls.package && file.path.includes(cls.package.replace(/\./g, '/'))) {
+                    candidate.score += 3;
+                }
+            }
+        }
+        
+        return Array.from(candidates.values())
+            .sort((a, b) => b.score - a.score)
+            .map(c => c.class)
+            .slice(0, 3);
+    }
+
+    private async enhanceExistingDocumentationWithAI(existing: string, structure: ProjectStructure, relPath?: string): Promise<string> {
+        try {
+            const model = this.initializeModel();
+            
+            const enhancementPrompt = `
+                You are tasked with enhancing existing documentation that may be outdated or incomplete.
+                
+                EXISTING DOCUMENTATION:
+                ---
+                ${existing}
+                ---
+                
+                PROJECT CONTEXT:
+                - Total classes: ${structure.classes.length}
+                - Available classes: ${structure.classes.map(c => c.name).slice(0, 10).join(', ')}${structure.classes.length > 10 ? '...' : ''}
+                
+                ENHANCEMENT GOALS:
+                1. **Improve clarity and completeness** of existing content
+                2. **Add missing technical details** where obvious gaps exist
+                3. **Enhance code examples** with proper syntax and context
+                4. **Improve structure and formatting** for better readability
+                5. **Add relevant Spring Boot context** if applicable
+                
+                GUIDELINES:
+                - Preserve the original intent and structure
+                - Enhance rather than completely rewrite
+                - Add practical examples where helpful
+                - Ensure technical accuracy
+                - Maintain professional documentation style
+                
+                Return the enhanced documentation with improvements while preserving the original content's value.
+            `;
+
+            const result = await model.invoke(enhancementPrompt);
+            const content = typeof result.content === 'string' ? result.content : result.toString();
+            
+            return content;
+        } catch (error) {
+            console.warn(`[DocumentationAgent] ❌ AI enhancement failed:`, error);
+            return existing; // Return original if enhancement fails
+        }
+    }
+
+    private async enhancedFallbackUpdate(existing: string, targetClass: any | null, structure: ProjectStructure, relPath?: string): Promise<string> {
+        console.log(`[DocumentationAgent] 🔄 Using enhanced fallback update for: ${relPath}`);
+        
+        try {
+            const model = this.initializeModel();
+            
+            const fallbackPrompt = `
+                Perform a careful update of this documentation, focusing on accuracy and completeness.
+                
+                EXISTING DOCUMENTATION:
+                ---
+                ${existing}
+                ---
+                
+                ${targetClass ? `TARGET CLASS: ${targetClass.name}` : 'TARGET CLASS: Unknown'}
+                PROJECT CONTEXT: ${structure.classes.length} classes available
+                
+                UPDATE STRATEGY:
+                1. **Fix obvious errors** in syntax, formatting, or structure
+                2. **Improve code examples** with proper formatting and context
+                3. **Enhance explanations** where they seem incomplete or unclear
+                4. **Add missing sections** if the documentation seems incomplete
+                5. **Ensure consistency** in terminology and style
+                
+                PRESERVATION PRIORITY:
+                - Keep all user-written content and examples
+                - Preserve the overall structure and flow
+                - Maintain the original tone and approach
+                - Only update what clearly needs improvement
+                
+                Return the improved documentation that maintains the original value while fixing issues.
+            `;
+
+            const result = await model.invoke(fallbackPrompt);
+            const content = typeof result.content === 'string' ? result.content : result.toString();
+            
+            return content;
+        } catch (error) {
+            console.error(`[DocumentationAgent] ❌ Enhanced fallback failed:`, error);
+            return existing; // Return original as last resort
+        }
+    }
+
+
 
   private createStructureSummary(structure: ProjectStructure): string {
     let summary = `Total Classes: ${structure.classes.length}\n\n`;

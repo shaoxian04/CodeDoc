@@ -643,6 +643,117 @@ DIAGRAM GUIDELINES:
     }
     async updateMarkdownFile(structure, existing, relatedFiles = [], relPath) {
         try {
+            // Enhanced approach: Try to identify the target class and use full documentation generation
+            const targetClass = this.identifyTargetClassFromMarkdown(existing, structure);
+            if (targetClass) {
+                console.log(`[DocumentationAgent] Identified target class: ${targetClass.name} for ${relPath}`);
+                // Use the full documentation generation pipeline for better results
+                return await this.regenerateClassDocumentationWithPreservation(targetClass, structure.classes.filter(c => c.name !== targetClass.name), existing, relPath);
+            }
+            else {
+                // Fallback to the original simple update approach
+                console.log(`[DocumentationAgent] Could not identify target class for ${relPath}, using simple update`);
+                return await this.simpleMarkdownUpdate(existing, relatedFiles, relPath);
+            }
+        }
+        catch (error) {
+            if (error instanceof Error && error.message.includes("API key not configured")) {
+                throw error;
+            }
+            throw new Error(`Failed to update markdown file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    identifyTargetClassFromMarkdown(existing, structure) {
+        // Try to extract class name from markdown headers or content
+        const classNamePatterns = [
+            /^#\s+(.+?)(?:\s+Class)?$/m, // # ClassName or # ClassName Class
+            /^##\s+(.+?)(?:\s+Class)?$/m, // ## ClassName or ## ClassName Class  
+            /Class:\s*`?([A-Z][a-zA-Z0-9_]+)`?/, // Class: ClassName
+            /`([A-Z][a-zA-Z0-9_]+)`\s+class/i, // `ClassName` class
+            /\*\*([A-Z][a-zA-Z0-9_]+)\*\*/ // **ClassName**
+        ];
+        for (const pattern of classNamePatterns) {
+            const match = existing.match(pattern);
+            if (match) {
+                const potentialClassName = match[1].trim();
+                // Find matching class in structure
+                const targetClass = structure.classes.find(c => c.name === potentialClassName ||
+                    c.name.endsWith(potentialClassName) ||
+                    potentialClassName.includes(c.name));
+                if (targetClass) {
+                    return targetClass;
+                }
+            }
+        }
+        // Try to match by file path if relPath is available
+        const filePathMatch = existing.match(/File:\s*([^\n]+)/);
+        if (filePathMatch) {
+            const filePath = filePathMatch[1].trim();
+            const targetClass = structure.classes.find(c => c.filePath && (c.filePath.includes(filePath) || filePath.includes(c.filePath)));
+            if (targetClass) {
+                return targetClass;
+            }
+        }
+        return null;
+    }
+    async regenerateClassDocumentationWithPreservation(targetClass, relatedClasses, existingMarkdown, relPath) {
+        try {
+            // Generate fresh documentation using the full pipeline
+            const newDocumentation = await this.generateClassDocumentation(targetClass, relatedClasses);
+            // Preserve user customizations from existing markdown
+            const preservedDocumentation = await this.preserveUserCustomizations(existingMarkdown, newDocumentation, relPath);
+            return preservedDocumentation;
+        }
+        catch (error) {
+            console.warn(`[DocumentationAgent] Failed to regenerate documentation for ${targetClass.name}, falling back to simple update:`, error);
+            // Fallback to simple update if regeneration fails
+            return await this.simpleMarkdownUpdate(existingMarkdown, [], relPath);
+        }
+    }
+    async preserveUserCustomizations(existingMarkdown, newDocumentation, relPath) {
+        try {
+            const model = this.initializeModel();
+            const preservationPrompt = `
+                You are tasked with intelligently merging existing markdown documentation with newly generated documentation.
+                Your goal is to preserve valuable user customizations while updating outdated technical information.
+
+                EXISTING DOCUMENTATION (may contain user customizations):
+                ---
+                ${existingMarkdown}
+                ---
+
+                NEW GENERATED DOCUMENTATION (contains current technical information):
+                ---
+                ${newDocumentation}
+                ---
+
+                PRESERVATION GUIDELINES:
+                1. **Preserve User Content**: Keep any custom examples, explanations, or insights that users added
+                2. **Update Technical Info**: Replace outdated method signatures, annotations, dependencies with current ones
+                3. **Merge Examples**: Combine user examples with generated examples, prioritizing user examples
+                4. **Keep Structure**: Maintain the overall structure and headings from the new documentation
+                5. **Preserve Links**: Keep any custom file links or references users added
+                6. **Custom Sections**: Preserve any custom sections users added (like "Troubleshooting", "Best Practices", etc.)
+
+                MERGE STRATEGY:
+                - Use the new documentation as the base structure
+                - Inject preserved user content into appropriate sections
+                - Update only the technical details that are clearly outdated
+                - Keep the tone and style consistent
+
+                Return the merged markdown that combines the best of both versions.
+            `;
+            const result = await model.invoke(preservationPrompt);
+            const content = typeof result.content === 'string' ? result.content : result.toString();
+            return content;
+        }
+        catch (error) {
+            console.warn(`[DocumentationAgent] Failed to preserve customizations for ${relPath}, using new documentation:`, error);
+            return newDocumentation;
+        }
+    }
+    async simpleMarkdownUpdate(existing, relatedFiles, relPath) {
+        try {
             const model = this.initializeModel();
             let finalPrompt = `
                 You are given an existing markdown file and several related code snippets. Update the markdown only where it is inconsistent with the code. Preserve headings and formatting when possible. Keep changes minimal and focused.
@@ -675,10 +786,7 @@ DIAGRAM GUIDELINES:
             return result;
         }
         catch (error) {
-            if (error instanceof Error && error.message.includes('API key not configured')) {
-                throw error;
-            }
-            throw new Error(`Failed to update markdown file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Failed to perform simple markdown update: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
     createStructureSummary(structure) {
