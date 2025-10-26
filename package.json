@@ -2,7 +2,7 @@
   "name": "codedocx",
   "displayName": "CodeDocX",
   "description": "AI-powered code documentation and visualization for Java projects.",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "publisher": "NP",
   "engines": {
     "vscode": "^1.74.0"
