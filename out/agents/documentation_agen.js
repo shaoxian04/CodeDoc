@@ -46,7 +46,7 @@ var ComplexityLevel;
 (function (ComplexityLevel) {
     ComplexityLevel["SIMPLE"] = "simple";
     ComplexityLevel["MODERATE"] = "moderate";
-    ComplexityLevel["COMPLEX"] = "complex"; // 16+ methods, 800-1500 words
+    ComplexityLevel["COMPLEX"] = "complex";
 })(ComplexityLevel || (exports.ComplexityLevel = ComplexityLevel = {}));
 class DocumentationAgent {
     model = null;
@@ -90,21 +90,25 @@ class DocumentationAgent {
             dependencyCount,
             springPatternCount,
             overallComplexity: complexity,
-            recommendedWordCount
+            recommendedWordCount,
         };
     }
     getSpringContextInfo(javaClass) {
         if (!javaClass.springPatterns || javaClass.springPatterns.length === 0) {
             // Fallback: check for Spring annotations in the old format
-            const hasSpringAnnotations = javaClass.annotations?.some(ann => ann.includes('@Service') || ann.includes('@Controller') ||
-                ann.includes('@Repository') || ann.includes('@Component') ||
-                ann.includes('@RestController'));
+            const hasSpringAnnotations = javaClass.annotations?.some((ann) => ann.includes("@Service") ||
+                ann.includes("@Controller") ||
+                ann.includes("@Repository") ||
+                ann.includes("@Component") ||
+                ann.includes("@RestController"));
             if (hasSpringAnnotations) {
                 return "This is a Spring component based on its annotations.";
             }
             return "This is a regular Java class.";
         }
-        const patterns = javaClass.springPatterns.map(p => p.description).join(", ");
+        const patterns = javaClass.springPatterns
+            .map((p) => p.description)
+            .join(", ");
         return `This is a Spring component: ${patterns}`;
     }
     createClassFileMap(relatedClasses, currentClass) {
@@ -119,7 +123,10 @@ class DocumentationAgent {
     }
     async getUsageExamples(javaClass, relatedClasses) {
         // Try to get real usage examples
-        const projectStructure = { classes: [javaClass, ...relatedClasses], relationships: [] };
+        const projectStructure = {
+            classes: [javaClass, ...relatedClasses],
+            relationships: [],
+        };
         const realExamples = await this.ragService.retrieveClassUsagePatterns(javaClass.name, projectStructure);
         // Generate synthetic examples as fallback
         const syntheticExamples = this.syntheticGenerator.generateClassUsageExamples(javaClass, javaClass.springPatterns || []);
@@ -212,7 +219,8 @@ class DocumentationAgent {
     getUsageExamplesSection(usageExamples) {
         let section = "";
         if (usageExamples.realExamples.length > 0) {
-            section += "- PRIORITY: Use these real usage examples from the codebase:\n";
+            section +=
+                "- PRIORITY: Use these real usage examples from the codebase:\n";
             usageExamples.realExamples.slice(0, 2).forEach((example, index) => {
                 section += `  Real Example ${index + 1}: ${example.codeSnippet}\n`;
             });
@@ -228,15 +236,15 @@ class DocumentationAgent {
     async generateClassRelationshipDiagram(javaClass, relatedClasses) {
         try {
             const diagramResult = await this.visualizationAgent.execute({
-                task: 'generateClassRelationshipDiagram',
+                task: "generateClassRelationshipDiagram",
                 targetClass: javaClass,
                 relatedClasses: relatedClasses,
-                springContext: javaClass.springPatterns
+                springContext: javaClass.springPatterns,
             });
             return diagramResult;
         }
         catch (error) {
-            console.error('Failed to generate class relationship diagram:', error);
+            console.error("Failed to generate class relationship diagram:", error);
             // Return a simple text-based relationship description as fallback
             return this.generateTextBasedRelationships(javaClass, relatedClasses);
         }
@@ -245,11 +253,12 @@ class DocumentationAgent {
         let relationships = `## Class Relationships\n\n`;
         relationships += `**${javaClass.name}** relationships:\n`;
         // Spring dependencies
-        if (javaClass.springDependencies && javaClass.springDependencies.length > 0) {
+        if (javaClass.springDependencies &&
+            javaClass.springDependencies.length > 0) {
             relationships += `\n**Dependencies (via Spring DI):**\n`;
-            javaClass.springDependencies.forEach(dep => {
-                const relatedClass = relatedClasses.find(rc => rc.name === dep.type);
-                const filePath = relatedClass ? relatedClass.filePath : '';
+            javaClass.springDependencies.forEach((dep) => {
+                const relatedClass = relatedClasses.find((rc) => rc.name === dep.type);
+                const filePath = relatedClass ? relatedClass.filePath : "";
                 relationships += `- [${dep.type}](${filePath}) (${dep.annotation})\n`;
             });
         }
@@ -258,7 +267,7 @@ class DocumentationAgent {
             relationships += `\n**Extends:** ${javaClass.extends}\n`;
         }
         if (javaClass.implements && javaClass.implements.length > 0) {
-            relationships += `\n**Implements:** ${javaClass.implements.join(', ')}\n`;
+            relationships += `\n**Implements:** ${javaClass.implements.join(", ")}\n`;
         }
         return relationships;
     }
@@ -266,27 +275,28 @@ class DocumentationAgent {
     analyzeProjectStructure(structure) {
         const totalClasses = structure.classes.length;
         // Identify Spring components
-        const springComponents = structure.classes.filter(cls => cls.springPatterns && cls.springPatterns.length > 0);
+        const springComponents = structure.classes.filter((cls) => cls.springPatterns && cls.springPatterns.length > 0);
         // Analyze layer distribution
         const layerDistribution = {};
-        springComponents.forEach(component => {
+        springComponents.forEach((component) => {
             component.springPatterns?.forEach((pattern) => {
-                layerDistribution[pattern.layerType] = (layerDistribution[pattern.layerType] || 0) + 1;
+                layerDistribution[pattern.layerType] =
+                    (layerDistribution[pattern.layerType] || 0) + 1;
             });
         });
         // Determine project complexity
         let complexityLevel;
         let recommendedWordCount;
         if (totalClasses <= 10 && springComponents.length <= 5) {
-            complexityLevel = 'SIMPLE';
+            complexityLevel = "SIMPLE";
             recommendedWordCount = 800;
         }
         else if (totalClasses <= 30 && springComponents.length <= 15) {
-            complexityLevel = 'MODERATE';
+            complexityLevel = "MODERATE";
             recommendedWordCount = 1200;
         }
         else {
-            complexityLevel = 'COMPLEX';
+            complexityLevel = "COMPLEX";
             recommendedWordCount = 1800;
         }
         return {
@@ -294,7 +304,7 @@ class DocumentationAgent {
             springComponents,
             layerDistribution,
             complexityLevel,
-            recommendedWordCount
+            recommendedWordCount,
         };
     }
     createProjectOverviewPrompt(projectAnalysis, architectureDiagram) {
@@ -379,25 +389,25 @@ DIAGRAM GUIDELINES:
         let guidelines = "";
         Object.entries(projectAnalysis.layerDistribution).forEach(([layer, count]) => {
             switch (layer) {
-                case 'PRESENTATION':
+                case "PRESENTATION":
                     guidelines += `\n**Presentation Layer (${count} components):**\n`;
                     guidelines += "- Controllers handling HTTP requests\n";
                     guidelines += "- REST endpoints and request/response mapping\n";
                     guidelines += "- Input validation and error handling\n";
                     break;
-                case 'BUSINESS':
+                case "BUSINESS":
                     guidelines += `\n**Business Layer (${count} components):**\n`;
                     guidelines += "- Service classes containing business logic\n";
                     guidelines += "- Transaction management and business rules\n";
                     guidelines += "- Integration between different business domains\n";
                     break;
-                case 'DATA':
+                case "DATA":
                     guidelines += `\n**Data Layer (${count} components):**\n`;
                     guidelines += "- Repository interfaces and implementations\n";
                     guidelines += "- Database operations and data access patterns\n";
                     guidelines += "- Entity relationships and data modeling\n";
                     break;
-                case 'CONFIGURATION':
+                case "CONFIGURATION":
                     guidelines += `\n**Configuration Layer (${count} components):**\n`;
                     guidelines += "- Spring Boot configuration classes\n";
                     guidelines += "- Bean definitions and dependency wiring\n";
@@ -405,22 +415,23 @@ DIAGRAM GUIDELINES:
                     break;
             }
         });
-        return guidelines || "- Analyze the main architectural layers and their responsibilities";
+        return (guidelines ||
+            "- Analyze the main architectural layers and their responsibilities");
     }
     generateFallbackArchitectureDiagram(structure) {
-        const springComponents = structure.classes.filter(cls => cls.springPatterns && cls.springPatterns.length > 0);
+        const springComponents = structure.classes.filter((cls) => cls.springPatterns && cls.springPatterns.length > 0);
         if (springComponents.length === 0) {
             return "```mermaid\ngraph TD\n    A[Java Application] --> B[Main Classes]\n```";
         }
         let diagram = "```mermaid\ngraph TD\n";
         // Group by layer
-        const controllers = springComponents.filter(c => c.springPatterns?.some((p) => p.type === 'CONTROLLER' || p.type === 'REST_CONTROLLER'));
-        const services = springComponents.filter(c => c.springPatterns?.some((p) => p.type === 'SERVICE'));
-        const repositories = springComponents.filter(c => c.springPatterns?.some((p) => p.type === 'REPOSITORY'));
+        const controllers = springComponents.filter((c) => c.springPatterns?.some((p) => p.type === "CONTROLLER" || p.type === "REST_CONTROLLER"));
+        const services = springComponents.filter((c) => c.springPatterns?.some((p) => p.type === "SERVICE"));
+        const repositories = springComponents.filter((c) => c.springPatterns?.some((p) => p.type === "REPOSITORY"));
         // Add nodes
-        controllers.forEach((c, i) => diagram += `    C${i}[${c.name}]\n`);
-        services.forEach((s, i) => diagram += `    S${i}[${s.name}]\n`);
-        repositories.forEach((r, i) => diagram += `    R${i}[${r.name}]\n`);
+        controllers.forEach((c, i) => (diagram += `    C${i}[${c.name}]\n`));
+        services.forEach((s, i) => (diagram += `    S${i}[${s.name}]\n`));
+        repositories.forEach((r, i) => (diagram += `    R${i}[${r.name}]\n`));
         // Add relationships
         if (controllers.length > 0 && services.length > 0) {
             diagram += `    C0 --> S0\n`;
@@ -434,12 +445,12 @@ DIAGRAM GUIDELINES:
     createEnhancedStructureSummary(structure) {
         let summary = `Total Classes: ${structure.classes.length}\n\n`;
         // Spring Components Analysis
-        const springComponents = structure.classes.filter(cls => cls.springPatterns && cls.springPatterns.length > 0);
+        const springComponents = structure.classes.filter((cls) => cls.springPatterns && cls.springPatterns.length > 0);
         if (springComponents.length > 0) {
             summary += `Spring Components (${springComponents.length}):\n`;
             // Group by Spring pattern type
             const patternGroups = {};
-            springComponents.forEach(component => {
+            springComponents.forEach((component) => {
                 component.springPatterns?.forEach((pattern) => {
                     if (!patternGroups[pattern.type]) {
                         patternGroups[pattern.type] = [];
@@ -449,7 +460,7 @@ DIAGRAM GUIDELINES:
             });
             Object.entries(patternGroups).forEach(([pattern, components]) => {
                 summary += `\n${pattern} (${components.length}):\n`;
-                components.forEach(comp => {
+                components.forEach((comp) => {
                     summary += `- ${comp.name} (${comp.package}) - ${comp.filePath}\n`;
                 });
             });
@@ -517,17 +528,18 @@ DIAGRAM GUIDELINES:
         try {
             const model = this.initializeModel();
             const projectAnalysis = this.analyzeProjectStructure(structure);
-            let architectureDiagram = '';
+            let architectureDiagram = "";
             try {
                 architectureDiagram = await this.visualizationAgent.execute({
-                    task: 'generateArchitectureDiagram',
+                    task: "generateArchitectureDiagram",
                     projectStructure: structure,
-                    userQuery: userQuery
+                    userQuery: userQuery,
                 });
             }
             catch (error) {
-                console.warn('Failed to generate architecture diagram:', error);
-                architectureDiagram = this.generateFallbackArchitectureDiagram(structure);
+                console.warn("Failed to generate architecture diagram:", error);
+                architectureDiagram =
+                    this.generateFallbackArchitectureDiagram(structure);
             }
             let finalPrompt = this.createProjectOverviewPrompt(projectAnalysis, architectureDiagram);
             if (userQuery && structure) {
@@ -535,8 +547,9 @@ DIAGRAM GUIDELINES:
                 const augmentedPrompt = await this.ragService.augmentPrompt(finalPrompt, context);
                 finalPrompt = augmentedPrompt;
             }
-            const result = await model.invoke(finalPrompt + `\n\nProject Structure Summary:\n${this.createEnhancedStructureSummary(structure)}`);
-            const content = typeof result.content === 'string' ? result.content : result.toString();
+            const result = await model.invoke(finalPrompt +
+                `\n\nProject Structure Summary:\n${this.createEnhancedStructureSummary(structure)}`);
+            const content = typeof result.content === "string" ? result.content : result.toString();
             return content;
         }
         catch (error) {
@@ -555,20 +568,20 @@ DIAGRAM GUIDELINES:
             const classFileMap = this.createClassFileMap(relatedClasses, javaClass);
             let usageExamples = {
                 realExamples: [],
-                syntheticExamples: []
+                syntheticExamples: [],
             };
             try {
                 usageExamples = await this.getUsageExamples(javaClass, relatedClasses);
             }
             catch (error) {
-                console.warn('Failed to get usage examples, using empty examples:', error);
+                console.warn("Failed to get usage examples, using empty examples:", error);
             }
-            let relationshipDiagram = '';
+            let relationshipDiagram = "";
             try {
                 relationshipDiagram = await this.generateClassRelationshipDiagram(javaClass, relatedClasses);
             }
             catch (error) {
-                console.warn('Failed to generate relationship diagram, using text fallback:', error);
+                console.warn("Failed to generate relationship diagram, using text fallback:", error);
                 relationshipDiagram = this.generateTextBasedRelationships(javaClass, relatedClasses);
             }
             let finalPrompt = this.createAdaptivePrompt(complexity, springInfo, classFileMap, usageExamples, relationshipDiagram);
@@ -611,8 +624,12 @@ DIAGRAM GUIDELINES:
             const relatedClassesStr = relatedClasses
                 .map((cls) => `- ${cls.name} (${cls.package})`)
                 .join("\n");
-            const springPatternsStr = javaClass.springPatterns?.map((p) => `${p.type}: ${p.description}`).join(", ") || "None";
-            const springDependenciesStr = javaClass.springDependencies?.map((d) => `${d.fieldName} (${d.type}) - ${d.annotation}`).join(", ") || "None";
+            const springPatternsStr = javaClass.springPatterns
+                ?.map((p) => `${p.type}: ${p.description}`)
+                .join(", ") || "None";
+            const springDependenciesStr = javaClass.springDependencies
+                ?.map((d) => `${d.fieldName} (${d.type}) - ${d.annotation}`)
+                .join(", ") || "None";
             const classFileMapStr = Object.entries(classFileMap)
                 .map(([className, filePath]) => `${className}: ${filePath}`)
                 .join(", ");
@@ -629,7 +646,7 @@ DIAGRAM GUIDELINES:
                 relatedClasses: relatedClassesStr || "None",
                 springPatterns: springPatternsStr,
                 springDependencies: springDependenciesStr,
-                classFileMap: classFileMapStr
+                classFileMap: classFileMapStr,
             });
             return result;
         }
@@ -643,81 +660,244 @@ DIAGRAM GUIDELINES:
     }
     async updateMarkdownFile(structure, existing, relatedFiles = [], relPath) {
         try {
-            // Enhanced approach: Try to identify the target class and use full documentation generation
-            const targetClass = this.identifyTargetClassFromMarkdown(existing, structure);
+            console.log(`[DocumentationAgent] Starting enhanced stale documentation update for: ${relPath}`);
+            // Step 1: Advanced class identification with multiple strategies
+            const targetClass = await this.identifyTargetClassAdvanced(existing, structure, relatedFiles, relPath);
             if (targetClass) {
-                console.log(`[DocumentationAgent] Identified target class: ${targetClass.name} for ${relPath}`);
-                // Use the full documentation generation pipeline for better results
-                return await this.regenerateClassDocumentationWithPreservation(targetClass, structure.classes.filter(c => c.name !== targetClass.name), existing, relPath);
+                console.log(`[DocumentationAgent] ✅ Identified target class: ${targetClass.name} for ${relPath}`);
+                // Step 2: Analyze what type of documentation this is
+                const docType = this.analyzeDocumentationType(existing, targetClass);
+                console.log(`[DocumentationAgent] 📋 Documentation type: ${docType}`);
+                // Step 3: Use the appropriate generation strategy
+                return await this.regenerateDocumentationIntelligently(targetClass, structure, existing, relPath, docType);
             }
             else {
-                // Fallback to the original simple update approach
-                console.log(`[DocumentationAgent] Could not identify target class for ${relPath}, using simple update`);
-                return await this.simpleMarkdownUpdate(existing, relatedFiles, relPath);
+                // Enhanced fallback: Try to create documentation from scratch if we can identify related classes
+                console.log(`[DocumentationAgent] ⚠️ Could not identify target class, attempting smart reconstruction`);
+                return await this.smartDocumentationReconstruction(existing, structure, relatedFiles, relPath);
             }
         }
         catch (error) {
-            if (error instanceof Error && error.message.includes("API key not configured")) {
+            if (error instanceof Error &&
+                error.message.includes("API key not configured")) {
                 throw error;
             }
-            throw new Error(`Failed to update markdown file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            console.error(`[DocumentationAgent] ❌ Failed to update markdown file: ${error}`);
+            throw new Error(`Failed to update markdown file: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
-    identifyTargetClassFromMarkdown(existing, structure) {
-        // Try to extract class name from markdown headers or content
+    async identifyTargetClassAdvanced(existing, structure, relatedFiles, relPath) {
+        console.log(`[DocumentationAgent] 🔍 Starting advanced class identification...`);
+        // Strategy 1: Extract from markdown headers and content
+        const classFromMarkdown = this.extractClassFromMarkdown(existing);
+        if (classFromMarkdown) {
+            const targetClass = structure.classes.find((c) => c.name === classFromMarkdown ||
+                c.name.endsWith(classFromMarkdown) ||
+                classFromMarkdown.includes(c.name));
+            if (targetClass) {
+                console.log(`[DocumentationAgent] ✅ Found class from markdown: ${targetClass.name}`);
+                return targetClass;
+            }
+        }
+        // Strategy 2: Match by file path
+        if (relPath) {
+            const classFromPath = this.extractClassFromPath(relPath, structure);
+            if (classFromPath) {
+                console.log(`[DocumentationAgent] ✅ Found class from path: ${classFromPath.name}`);
+                return classFromPath;
+            }
+        }
+        // Strategy 3: Analyze related files to find the main class
+        const classFromRelatedFiles = this.extractClassFromRelatedFiles(relatedFiles, structure);
+        if (classFromRelatedFiles) {
+            console.log(`[DocumentationAgent] ✅ Found class from related files: ${classFromRelatedFiles.name}`);
+            return classFromRelatedFiles;
+        }
+        // Strategy 4: Use AI to identify the class from content
+        const classFromAI = await this.identifyClassUsingAI(existing, structure);
+        if (classFromAI) {
+            console.log(`[DocumentationAgent] ✅ Found class using AI: ${classFromAI.name}`);
+            return classFromAI;
+        }
+        console.log(`[DocumentationAgent] ❌ Could not identify target class using any strategy`);
+        return null;
+    }
+    extractClassFromMarkdown(existing) {
         const classNamePatterns = [
-            /^#\s+(.+?)(?:\s+Class)?$/m, // # ClassName or # ClassName Class
-            /^##\s+(.+?)(?:\s+Class)?$/m, // ## ClassName or ## ClassName Class  
+            /^#\s+(.+?)(?:\s+Class|\s+Documentation)?$/m, // # ClassName or # ClassName Class
+            /^##\s+(.+?)(?:\s+Class|\s+Overview)?$/m, // ## ClassName or ## ClassName Class
             /Class:\s*`?([A-Z][a-zA-Z0-9_]+)`?/, // Class: ClassName
             /`([A-Z][a-zA-Z0-9_]+)`\s+class/i, // `ClassName` class
-            /\*\*([A-Z][a-zA-Z0-9_]+)\*\*/ // **ClassName**
+            /\*\*([A-Z][a-zA-Z0-9_]+)\*\*/, // **ClassName**
+            /File:\s*.*\/([A-Z][a-zA-Z0-9_]+)\.java/, // File: .../ClassName.java
+            /Package:\s*.*\.([A-Z][a-zA-Z0-9_]+)/, // Package: com.example.ClassName
+            /^([A-Z][a-zA-Z0-9_]+)\s*$/m, // Standalone ClassName
         ];
         for (const pattern of classNamePatterns) {
             const match = existing.match(pattern);
             if (match) {
-                const potentialClassName = match[1].trim();
-                // Find matching class in structure
-                const targetClass = structure.classes.find(c => c.name === potentialClassName ||
-                    c.name.endsWith(potentialClassName) ||
-                    potentialClassName.includes(c.name));
+                const className = match[1].trim();
+                if (className && /^[A-Z][a-zA-Z0-9_]*$/.test(className)) {
+                    return className;
+                }
+            }
+        }
+        return null;
+    }
+    extractClassFromPath(relPath, structure) {
+        // Extract class name from file path
+        const pathMatch = relPath.match(/([A-Z][a-zA-Z0-9_]+)(?:\.md|\.markdown)?$/);
+        if (pathMatch) {
+            const className = pathMatch[1];
+            return structure.classes.find((c) => c.name === className);
+        }
+        // Try to match by similar file paths
+        return structure.classes.find((c) => {
+            if (!c.filePath)
+                return false;
+            const classFileName = c.filePath.split("/").pop()?.replace(".java", "");
+            const docFileName = relPath
+                .split("/")
+                .pop()
+                ?.replace(/\.(md|markdown)$/, "");
+            return classFileName === docFileName;
+        });
+    }
+    extractClassFromRelatedFiles(relatedFiles, structure) {
+        for (const file of relatedFiles) {
+            // Extract class name from Java file path
+            const javaClassMatch = file.path.match(/([A-Z][a-zA-Z0-9_]+)\.java$/);
+            if (javaClassMatch) {
+                const className = javaClassMatch[1];
+                const targetClass = structure.classes.find((c) => c.name === className);
+                if (targetClass) {
+                    return targetClass;
+                }
+            }
+            // Extract class name from code snippet
+            const classDeclarationMatch = file.snippet.match(/(?:public\s+)?class\s+([A-Z][a-zA-Z0-9_]+)/);
+            if (classDeclarationMatch) {
+                const className = classDeclarationMatch[1];
+                const targetClass = structure.classes.find((c) => c.name === className);
                 if (targetClass) {
                     return targetClass;
                 }
             }
         }
-        // Try to match by file path if relPath is available
-        const filePathMatch = existing.match(/File:\s*([^\n]+)/);
-        if (filePathMatch) {
-            const filePath = filePathMatch[1].trim();
-            const targetClass = structure.classes.find(c => c.filePath && (c.filePath.includes(filePath) || filePath.includes(c.filePath)));
-            if (targetClass) {
-                return targetClass;
+        return null;
+    }
+    async identifyClassUsingAI(existing, structure) {
+        try {
+            const model = this.initializeModel();
+            const classNames = structure.classes.map((c) => c.name).join(", ");
+            const identificationPrompt = `
+                Analyze this markdown documentation and identify which Java class it's documenting.
+                
+                Available classes in the project: ${classNames}
+                
+                Markdown content:
+                ---
+                ${existing.substring(0, 1000)}
+                ---
+                
+                Instructions:
+                1. Look for class names, method signatures, annotations, or other indicators
+                2. Return ONLY the exact class name if you can identify it with high confidence
+                3. Return "UNKNOWN" if you cannot identify the class
+                4. Do not explain your reasoning, just return the class name or "UNKNOWN"
+            `;
+            const result = await model.invoke(identificationPrompt);
+            const content = typeof result.content === "string" ? result.content : result.toString();
+            const className = content.trim();
+            if (className !== "UNKNOWN" &&
+                structure.classes.find((c) => c.name === className)) {
+                return structure.classes.find((c) => c.name === className);
             }
+        }
+        catch (error) {
+            console.warn(`[DocumentationAgent] AI class identification failed:`, error);
         }
         return null;
     }
-    async regenerateClassDocumentationWithPreservation(targetClass, relatedClasses, existingMarkdown, relPath) {
+    analyzeDocumentationType(existing, targetClass) {
+        const hasClassSpecificContent = /##\s+(Methods?|Fields?|Constructor|Usage|Example)/i.test(existing);
+        const hasProjectContent = /##\s+(Architecture|Overview|Getting Started|Installation)/i.test(existing);
+        const hasClassName = existing.includes(targetClass.name);
+        if (hasClassSpecificContent && hasClassName)
+            return "class";
+        if (hasProjectContent)
+            return "project";
+        if (hasClassSpecificContent || hasClassName)
+            return "mixed";
+        return "unknown";
+    }
+    async regenerateDocumentationIntelligently(targetClass, structure, existingMarkdown, relPath, docType = "class") {
         try {
-            // Generate fresh documentation using the full pipeline
-            const newDocumentation = await this.generateClassDocumentation(targetClass, relatedClasses);
-            // Preserve user customizations from existing markdown
-            const preservedDocumentation = await this.preserveUserCustomizations(existingMarkdown, newDocumentation, relPath);
+            console.log(`[DocumentationAgent] 🔄 Regenerating ${docType} documentation for: ${targetClass.name}`);
+            // Get related classes with better context
+            const relatedClasses = this.findRelatedClassesIntelligently(targetClass, structure);
+            console.log(`[DocumentationAgent] 🔗 Found ${relatedClasses.length} related classes`);
+            // Generate fresh documentation using the full pipeline with enhanced context
+            const newDocumentation = await this.generateClassDocumentation(targetClass, relatedClasses, `Update existing documentation for ${targetClass.name}. Focus on accuracy and completeness.`);
+            // Intelligently preserve user customizations
+            const preservedDocumentation = await this.preserveUserCustomizationsIntelligently(existingMarkdown, newDocumentation, targetClass, relPath);
+            console.log(`[DocumentationAgent] ✅ Successfully regenerated documentation for: ${targetClass.name}`);
             return preservedDocumentation;
         }
         catch (error) {
-            console.warn(`[DocumentationAgent] Failed to regenerate documentation for ${targetClass.name}, falling back to simple update:`, error);
-            // Fallback to simple update if regeneration fails
-            return await this.simpleMarkdownUpdate(existingMarkdown, [], relPath);
+            console.warn(`[DocumentationAgent] ❌ Failed to regenerate documentation for ${targetClass.name}:`, error);
+            // Enhanced fallback
+            return await this.enhancedFallbackUpdate(existingMarkdown, targetClass, structure, relPath);
         }
     }
-    async preserveUserCustomizations(existingMarkdown, newDocumentation, relPath) {
+    findRelatedClassesIntelligently(targetClass, structure) {
+        const relatedClasses = new Set();
+        // Add classes from Spring dependencies
+        if (targetClass.springDependencies) {
+            targetClass.springDependencies.forEach((dep) => {
+                const relatedClass = structure.classes.find((c) => c.name === dep.type);
+                if (relatedClass)
+                    relatedClasses.add(relatedClass);
+            });
+        }
+        // Add classes from inheritance
+        if (targetClass.extends) {
+            const parentClass = structure.classes.find((c) => c.name === targetClass.extends);
+            if (parentClass)
+                relatedClasses.add(parentClass);
+        }
+        // Add classes from interfaces
+        if (targetClass.implements) {
+            targetClass.implements.forEach((interfaceName) => {
+                const interfaceClass = structure.classes.find((c) => c.name === interfaceName);
+                if (interfaceClass)
+                    relatedClasses.add(interfaceClass);
+            });
+        }
+        // Add classes from the same package
+        const samePackageClasses = structure.classes
+            .filter((c) => c.package === targetClass.package && c.name !== targetClass.name)
+            .slice(0, 3); // Limit to 3 for performance
+        samePackageClasses.forEach((c) => relatedClasses.add(c));
+        // Add classes that depend on this class
+        const dependentClasses = structure.classes
+            .filter((c) => c.springDependencies?.some((dep) => dep.type === targetClass.name))
+            .slice(0, 2);
+        dependentClasses.forEach((c) => relatedClasses.add(c));
+        return Array.from(relatedClasses);
+    }
+    async preserveUserCustomizationsIntelligently(existingMarkdown, newDocumentation, targetClass, relPath) {
         try {
             const model = this.initializeModel();
+            // Analyze what user customizations exist
+            const customizations = this.analyzeUserCustomizations(existingMarkdown);
             const preservationPrompt = `
-                You are tasked with intelligently merging existing markdown documentation with newly generated documentation.
-                Your goal is to preserve valuable user customizations while updating outdated technical information.
-
-                EXISTING DOCUMENTATION (may contain user customizations):
+                You are an expert technical writer tasked with intelligently merging existing documentation with newly generated documentation.
+                
+                TARGET CLASS: ${targetClass.name}
+                FILE: ${relPath || "unknown"}
+                
+                EXISTING DOCUMENTATION (contains user customizations):
                 ---
                 ${existingMarkdown}
                 ---
@@ -727,66 +907,212 @@ DIAGRAM GUIDELINES:
                 ${newDocumentation}
                 ---
 
-                PRESERVATION GUIDELINES:
-                1. **Preserve User Content**: Keep any custom examples, explanations, or insights that users added
-                2. **Update Technical Info**: Replace outdated method signatures, annotations, dependencies with current ones
-                3. **Merge Examples**: Combine user examples with generated examples, prioritizing user examples
-                4. **Keep Structure**: Maintain the overall structure and headings from the new documentation
-                5. **Preserve Links**: Keep any custom file links or references users added
-                6. **Custom Sections**: Preserve any custom sections users added (like "Troubleshooting", "Best Practices", etc.)
+                DETECTED USER CUSTOMIZATIONS:
+                ${customizations
+                .map((c) => `- ${c.type}: ${c.description}`)
+                .join("\n")}
 
-                MERGE STRATEGY:
-                - Use the new documentation as the base structure
-                - Inject preserved user content into appropriate sections
-                - Update only the technical details that are clearly outdated
-                - Keep the tone and style consistent
+                INTELLIGENT MERGE STRATEGY:
+                1. **Use new documentation as foundation** - It has current technical details
+                2. **Preserve valuable user content**:
+                   - Custom examples and code snippets
+                   - Personal insights and explanations
+                   - Additional sections (Troubleshooting, Tips, etc.)
+                   - Custom links and references
+                3. **Update technical accuracy**:
+                   - Method signatures and parameters
+                   - Annotations and Spring configurations
+                   - Dependencies and relationships
+                4. **Enhance with user knowledge**:
+                   - Merge user examples with generated ones
+                   - Keep user's practical insights
+                   - Preserve domain-specific explanations
 
-                Return the merged markdown that combines the best of both versions.
+                QUALITY REQUIREMENTS:
+                - Maintain professional technical writing style
+                - Ensure all code examples are accurate and current
+                - Keep Spring Boot focus and architectural context
+                - Include proper markdown formatting and links
+                - Balance technical depth with readability
+
+                Return the intelligently merged documentation that combines technical accuracy with user insights.
             `;
             const result = await model.invoke(preservationPrompt);
-            const content = typeof result.content === 'string' ? result.content : result.toString();
+            const content = typeof result.content === "string" ? result.content : result.toString();
             return content;
         }
         catch (error) {
-            console.warn(`[DocumentationAgent] Failed to preserve customizations for ${relPath}, using new documentation:`, error);
+            console.warn(`[DocumentationAgent] ❌ Failed to preserve customizations intelligently for ${relPath}:`, error);
             return newDocumentation;
         }
     }
-    async simpleMarkdownUpdate(existing, relatedFiles, relPath) {
+    analyzeUserCustomizations(existingMarkdown) {
+        const customizations = [];
+        // Check for custom sections
+        const customSections = existingMarkdown.match(/##\s+(Troubleshooting|Tips|Best Practices|Notes|FAQ|Common Issues)/gi);
+        if (customSections) {
+            customizations.push({
+                type: "Custom Sections",
+                description: `Found custom sections: ${customSections.join(", ")}`,
+            });
+        }
+        // Check for custom code examples
+        const codeBlocks = existingMarkdown.match(/```[\s\S]*?```/g);
+        if (codeBlocks && codeBlocks.length > 0) {
+            customizations.push({
+                type: "Code Examples",
+                description: `Found ${codeBlocks.length} custom code examples`,
+            });
+        }
+        // Check for custom links
+        const customLinks = existingMarkdown.match(/\[([^\]]+)\]\(([^)]+)\)/g);
+        if (customLinks && customLinks.length > 0) {
+            customizations.push({
+                type: "Custom Links",
+                description: `Found ${customLinks.length} custom links`,
+            });
+        }
+        // Check for personal notes or comments
+        const personalNotes = existingMarkdown.match(/(?:Note:|Important:|Warning:|Tip:)/gi);
+        if (personalNotes) {
+            customizations.push({
+                type: "Personal Notes",
+                description: `Found personal annotations: ${personalNotes.join(", ")}`,
+            });
+        }
+        return customizations;
+    }
+    async smartDocumentationReconstruction(existing, structure, relatedFiles, relPath) {
         try {
-            const model = this.initializeModel();
-            let finalPrompt = `
-                You are given an existing markdown file and several related code snippets. Update the markdown only where it is inconsistent with the code. Preserve headings and formatting when possible. Keep changes minimal and focused.
-
-                File path: ${relPath || 'unknown'}
-                Existing markdown (begin):\n{existing}\nExisting markdown (end)
-
-                Related code snippets (begin):\n{snippets}\nRelated code snippets (end)
-
-                Guidelines:
-                1. Only modify sections that are outdated or incorrect relative to the code.
-                2. Preserve examples and formatting where possible; update only necessary descriptions.
-                3. If the markdown is missing a short usage example, you may add a concise example based on the code.
-                4. Return the full updated markdown content only.
-            `;
-            const snippets = relatedFiles.map(r => `---\nfile: ${r.path}\n\n${r.snippet}\n---`).join('\n');
-            const promptTemplate = prompts_1.PromptTemplate.fromTemplate(finalPrompt);
-            const chain = promptTemplate.pipe(model).pipe(this.outputParser);
-            const result = await chain.invoke({ existing: existing.slice(0, 3000), snippets });
-            if (typeof result === 'string') {
-                let s = result.trim();
-                const fullFence = s.match(/^```[^\n]*\n([\s\S]*)\n```$/);
-                if (fullFence && fullFence[1]) {
-                    return fullFence[1].trim();
-                }
-                s = s.replace(/^```[^\n]*\n/, '');
-                s = s.replace(/\n```\s*$/, '');
-                return s.trim();
+            console.log(`[DocumentationAgent] 🔧 Attempting smart reconstruction for: ${relPath}`);
+            // Try to find the most relevant class from related files
+            const candidateClasses = this.findCandidateClasses(relatedFiles, structure);
+            if (candidateClasses.length > 0) {
+                const bestCandidate = candidateClasses[0];
+                console.log(`[DocumentationAgent] 🎯 Using best candidate: ${bestCandidate.name}`);
+                return await this.regenerateDocumentationIntelligently(bestCandidate, structure, existing, relPath, "mixed");
             }
-            return result;
+            else {
+                // Last resort: enhance the existing documentation with AI
+                return await this.enhanceExistingDocumentationWithAI(existing, structure, relPath);
+            }
         }
         catch (error) {
-            throw new Error(`Failed to perform simple markdown update: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            console.warn(`[DocumentationAgent] ❌ Smart reconstruction failed:`, error);
+            return await this.enhancedFallbackUpdate(existing, null, structure, relPath);
+        }
+    }
+    findCandidateClasses(relatedFiles, structure) {
+        const candidates = new Map();
+        for (const file of relatedFiles) {
+            // Score classes based on relevance
+            for (const cls of structure.classes) {
+                if (!candidates.has(cls.name)) {
+                    candidates.set(cls.name, { class: cls, score: 0 });
+                }
+                const candidate = candidates.get(cls.name);
+                // Score based on file path similarity
+                if (file.path.includes(cls.name)) {
+                    candidate.score += 10;
+                }
+                // Score based on code content
+                if (file.snippet.includes(cls.name)) {
+                    candidate.score += 5;
+                }
+                // Score based on package similarity
+                if (cls.package &&
+                    file.path.includes(cls.package.replace(/\./g, "/"))) {
+                    candidate.score += 3;
+                }
+            }
+        }
+        return Array.from(candidates.values())
+            .sort((a, b) => b.score - a.score)
+            .map((c) => c.class)
+            .slice(0, 3);
+    }
+    async enhanceExistingDocumentationWithAI(existing, structure, relPath) {
+        try {
+            const model = this.initializeModel();
+            const enhancementPrompt = `
+                You are tasked with enhancing existing documentation that may be outdated or incomplete.
+                
+                EXISTING DOCUMENTATION:
+                ---
+                ${existing}
+                ---
+                
+                PROJECT CONTEXT:
+                - Total classes: ${structure.classes.length}
+                - Available classes: ${structure.classes
+                .map((c) => c.name)
+                .slice(0, 10)
+                .join(", ")}${structure.classes.length > 10 ? "..." : ""}
+                
+                ENHANCEMENT GOALS:
+                1. **Improve clarity and completeness** of existing content
+                2. **Add missing technical details** where obvious gaps exist
+                3. **Enhance code examples** with proper syntax and context
+                4. **Improve structure and formatting** for better readability
+                5. **Add relevant Spring Boot context** if applicable
+                
+                GUIDELINES:
+                - Preserve the original intent and structure
+                - Enhance rather than completely rewrite
+                - Add practical examples where helpful
+                - Ensure technical accuracy
+                - Maintain professional documentation style
+                
+                Return the enhanced documentation with improvements while preserving the original content's value.
+            `;
+            const result = await model.invoke(enhancementPrompt);
+            const content = typeof result.content === "string" ? result.content : result.toString();
+            return content;
+        }
+        catch (error) {
+            console.warn(`[DocumentationAgent] ❌ AI enhancement failed:`, error);
+            return existing; // Return original if enhancement fails
+        }
+    }
+    async enhancedFallbackUpdate(existing, targetClass, structure, relPath) {
+        console.log(`[DocumentationAgent] 🔄 Using enhanced fallback update for: ${relPath}`);
+        try {
+            const model = this.initializeModel();
+            const fallbackPrompt = `
+                Perform a careful update of this documentation, focusing on accuracy and completeness.
+                
+                EXISTING DOCUMENTATION:
+                ---
+                ${existing}
+                ---
+                
+                ${targetClass
+                ? `TARGET CLASS: ${targetClass.name}`
+                : "TARGET CLASS: Unknown"}
+                PROJECT CONTEXT: ${structure.classes.length} classes available
+                
+                UPDATE STRATEGY:
+                1. **Fix obvious errors** in syntax, formatting, or structure
+                2. **Improve code examples** with proper formatting and context
+                3. **Enhance explanations** where they seem incomplete or unclear
+                4. **Add missing sections** if the documentation seems incomplete
+                5. **Ensure consistency** in terminology and style
+                
+                PRESERVATION PRIORITY:
+                - Keep all user-written content and examples
+                - Preserve the overall structure and flow
+                - Maintain the original tone and approach
+                - Only update what clearly needs improvement
+                
+                Return the improved documentation that maintains the original value while fixing issues.
+            `;
+            const result = await model.invoke(fallbackPrompt);
+            const content = typeof result.content === "string" ? result.content : result.toString();
+            return content;
+        }
+        catch (error) {
+            console.error(`[DocumentationAgent] ❌ Enhanced fallback failed:`, error);
+            return existing; // Return original as last resort
         }
     }
     createStructureSummary(structure) {
