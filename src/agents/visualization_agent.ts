@@ -730,14 +730,25 @@ classDiagram
   
     const makeSanitizedIdGenerator = () => {
       const used = new Set<string>();
+      const reservedWords = new Set(['class', 'interface', 'enum', 'abstract', 'extends', 'implements', 'public', 'private', 'protected', 'static', 'final']);
+      
       return (name: string) => {
         let id = (name || 'Class')
           .replace(/<[^>]*>/g, '')      // drop generics <>...
           .replace(/[^\w]/g, '_')       // non-word chars -> _
           .replace(/_+/g, '_')          // collapse multiple underscores
           .replace(/^_+|_+$/g, '');     // trim leading/trailing underscores
-        if (!id || /^\d/.test(id)) id = '_' + id;
-        if (!id) id = 'Class';
+        
+        // Ensure valid identifier
+        if (!id || /^\d/.test(id)) id = 'Class_' + id;
+        if (!id || id.length === 0) id = 'Class';
+        
+        // Avoid reserved words
+        if (reservedWords.has(id.toLowerCase())) {
+          id = id + '_Class';
+        }
+        
+        // Ensure uniqueness
         let base = id, i = 1;
         while (used.has(id)) {
           id = `${base}_${i++}`;
@@ -752,8 +763,16 @@ classDiagram
       if (!t) return 'Object';
       let s = String(t);
       s = s.replace(/<[^>]*>/g, '');           // remove generics
+      s = s.replace(/[^\w.]/g, '');            // remove special chars except dots
       const parts = s.split('.');
-      return parts[parts.length - 1] || s;
+      let result = parts[parts.length - 1] || s;
+      
+      // Ensure valid type name
+      if (!result || result.length === 0) result = 'Object';
+      result = result.replace(/[^\w]/g, '');   // remove any remaining special chars
+      if (!result || /^\d/.test(result)) result = 'Type_' + result;
+      
+      return result || 'Object';
     };
   
     const idMap = new Map<string, string>();
@@ -877,18 +896,26 @@ classDiagram
   
       // Add up to 5 key fields (simplified types) with more descriptive names
       const keyFields = (cls.fields || []).slice(0, 5);
+      let hasContent = false;
       keyFields.forEach((field: any) => {
         let fname = String(field.name || 'field')
           .replace(/[{}<>]/g, '')
           .replace(/[^\w]/g, '_')
           .replace(/_+/g, '_')
           .replace(/^_+|_+$/g, '');
-        // Ensure non-empty
-        if (!fname) {
-          fname = 'field';
-        }
+        
+        // Ensure valid field name
+        if (!fname || fname.length === 0) fname = 'field';
+        if (/^\d/.test(fname)) fname = 'field_' + fname;
+        
         const ftype = simplifyType(field.type);
-        mermaidContent += `        -${fname}: ${ftype}\n`;
+        
+        // Escape field name and type for Mermaid
+        const safeFname = fname.replace(/[:"]/g, '_');
+        const safeFtype = ftype.replace(/[:"]/g, '_');
+        
+        mermaidContent += `        -${safeFname} : ${safeFtype}\n`;
+        hasContent = true;
       });
   
       const allMethods = cls.methods || [];
@@ -919,24 +946,41 @@ classDiagram
       }
       
       keyMethods.forEach((method: any) => {
-        const ret = method.returnType && method.returnType !== 'void' ? `: ${simplifyType(method.returnType)}` : '';
         let mname = String(method.name || 'method')
           .replace(/\s+/g, '_')
           .replace(/[{}<>]/g, '')
           .replace(/[^\w]/g, '_')
           .replace(/_+/g, '_')
           .replace(/^_+|_+$/g, '');
-        // Ensure non-empty
-        if (!mname) {
-          mname = 'method';
-        }
-        mermaidContent += `        +${mname}()${ret}\n`;
+        
+        // Ensure valid method name
+        if (!mname || mname.length === 0) mname = 'method';
+        if (/^\d/.test(mname)) mname = 'method_' + mname;
+        
+        // Safe return type
+        const returnType = method.returnType && method.returnType !== 'void' ? simplifyType(method.returnType) : '';
+        const safeReturnType = returnType ? returnType.replace(/[:"]/g, '_') : '';
+        const ret = safeReturnType ? ` : ${safeReturnType}` : '';
+        
+        // Escape method name for Mermaid
+        const safeMname = mname.replace(/[:"]/g, '_');
+        
+        mermaidContent += `        +${safeMname}()${ret}\n`;
+        hasContent = true;
       });
+      
+      // If class has no fields or methods, add a placeholder to avoid empty class syntax error
+      if (!hasContent) {
+        mermaidContent += `        %% No public members\n`;
+      }
   
-      mermaidContent += '    }\n';
+      mermaidContent += '    }\n\n';  // Add extra newline between classes
     });
   
     const addedRelationships = new Set<string>();
+  
+    // Add separator comment before relationships
+    mermaidContent += '\n    %% Class Relationships\n';
   
     uniqueClasses.forEach(cls => {
       const classId = idMap.get(cls.name);
@@ -957,7 +1001,7 @@ classDiagram
             if (depId && depId !== classId) { 
               const rel = `${classId} --> ${depId}`;
               if (!addedRelationships.has(rel)) {
-                mermaidContent += `    ${rel} : depends on\n`;
+                mermaidContent += `    ${rel} : "depends on"\n`;
                 addedRelationships.add(rel);
               }
             }
@@ -981,7 +1025,8 @@ classDiagram
             if (fieldId && fieldId !== classId) { 
               const rel = `${classId} --> ${fieldId}`;
               if (!addedRelationships.has(rel)) {
-                mermaidContent += `    ${rel} : has ${field.name}\n`;
+                const safeFieldName = String(field.name || 'field').replace(/[:"]/g, '_');
+                mermaidContent += `    ${rel} : "has ${safeFieldName}"\n`;
                 addedRelationships.add(rel);
               }
             }
@@ -1007,7 +1052,8 @@ classDiagram
                 if (paramId && paramId !== classId) { 
                   const rel = `${classId} ..> ${paramId}`;
                   if (!addedRelationships.has(rel)) {
-                    mermaidContent += `    ${rel} : uses ${param.name}\n`;
+                    const safeParamName = String(param.name || 'param').replace(/[:"]/g, '_');
+                    mermaidContent += `    ${rel} : "uses ${safeParamName}"\n`;
                     addedRelationships.add(rel);
                   }
                 }
@@ -1030,7 +1076,8 @@ classDiagram
               if (returnId && returnId !== classId) { 
                 const rel = `${classId} ..> ${returnId}`;
                 if (!addedRelationships.has(rel)) {
-                  mermaidContent += `    ${rel} : returns ${method.name}\n`;
+                  const safeMethodName = String(method.name || 'method').replace(/[:"]/g, '_');
+                  mermaidContent += `    ${rel} : "returns ${safeMethodName}"\n`;
                   addedRelationships.add(rel);
                 }
               }
@@ -1055,7 +1102,7 @@ classDiagram
         const a = idMap.get(controller.name)!, b = idMap.get(service.name)!;
         const rel = `${a} --> ${b}`;
         if (!addedRelationships.has(rel)) {
-          mermaidContent += `    ${rel} : uses\n`;
+          mermaidContent += `    ${rel} : "uses"\n`;
           addedRelationships.add(rel);
         }
       });
@@ -1076,7 +1123,7 @@ classDiagram
         const a = idMap.get(service.name)!, b = idMap.get(repo.name)!;
         const rel = `${a} --> ${b}`;
         if (!addedRelationships.has(rel)) {
-          mermaidContent += `    ${rel} : uses\n`;
+          mermaidContent += `    ${rel} : "uses"\n`;
           addedRelationships.add(rel);
         }
       });
@@ -1098,6 +1145,98 @@ classDiagram
     }
   
     mermaidContent += '```';
+    
+    // Debug: Check if newlines are preserved
+    console.log('🔍 Generated Mermaid content length:', mermaidContent.length);
+    console.log('🔍 Newline count in content:', (mermaidContent.match(/\n/g) || []).length);
+    console.log('🔍 First 500 chars of generated content:');
+    console.log(mermaidContent.substring(0, 500));
+    console.log('🔍 Content includes classDiagram:', mermaidContent.includes('classDiagram'));
+    console.log('🔍 All lines of generated content:');
+    const debugLines = mermaidContent.split('\n');
+    debugLines.forEach((line, i) => {
+      if (i < 20) { // Show first 20 lines
+        console.log(`Line ${i + 1}: "${line}"`);
+      }
+    });
+    
+    // Check for problematic patterns
+    const problematicLines = debugLines.filter((line, i) => 
+      line.includes('{}') || line.match(/class\s+\w+\s*\{\s*\}/) || line.includes('}class')
+    );
+    if (problematicLines.length > 0) {
+      console.warn('🚨 Found potentially problematic lines:', problematicLines);
+    }
+    
+    // Validate and fix the generated Mermaid content for common syntax issues
+    const lines = mermaidContent.split('\n');
+    let hasErrors = false;
+    const errors: string[] = [];
+    const fixedLines: string[] = [];
+    
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      
+      let fixedLine = line;
+      
+      // Check for missing newlines between class definitions (common cause of parse errors)
+      if (trimmed.includes('}{') || trimmed.includes('}class')) {
+        errors.push(`Line ${index + 1}: Missing newline between class definitions`);
+        hasErrors = true;
+        // Try to fix by splitting on }class or }{
+        fixedLine = line.replace(/}(\s*class)/g, '}\n    $1').replace(/}{/g, '}\n    {');
+      }
+      
+      // Check for empty class definitions and fix them
+      if (trimmed.match(/class\s+\w+\s*\{\s*\}/)) {
+        errors.push(`Line ${index + 1}: Fixed empty class definition`);
+        hasErrors = true;
+        // Replace empty class with class containing a comment
+        fixedLine = fixedLine.replace(/(class\s+\w+\s*)\{\s*\}/, '$1{\n        %% No public members\n    }');
+      }
+      
+      fixedLines.push(fixedLine);
+      
+      if (trimmed && !trimmed.startsWith('```') && !trimmed.startsWith('classDiagram') && !trimmed.startsWith('%%')) {
+        // Check for invalid characters in class definitions
+        if (trimmed.includes('class ') && (trimmed.includes('"') || trimmed.includes("'") || trimmed.includes('`'))) {
+          errors.push(`Line ${index + 1}: Invalid characters in class definition`);
+          hasErrors = true;
+        }
+        
+        // Check for empty field/method names
+        if ((trimmed.includes('-') || trimmed.includes('+')) && trimmed.includes(' : ')) {
+          const parts = trimmed.split(' : ');
+          if (parts[0].trim().length <= 1) {
+            errors.push(`Line ${index + 1}: Empty field/method name`);
+            hasErrors = true;
+          }
+        }
+        
+        // Check for malformed class definitions
+        if (trimmed.startsWith('class ') && !trimmed.includes('{') && !trimmed.includes('<<')) {
+          errors.push(`Line ${index + 1}: Incomplete class definition`);
+          hasErrors = true;
+        }
+        
+        // Check for empty class definitions (class Name {})
+        if (trimmed.match(/class\s+\w+\s*\{\s*\}/)) {
+          errors.push(`Line ${index + 1}: Empty class definition (no members)`);
+          hasErrors = true;
+        }
+      }
+    });
+    
+    if (hasErrors) {
+      console.warn('🚨 Mermaid syntax validation found issues:', errors);
+      // Use fixed content if we made repairs
+      mermaidContent = fixedLines.join('\n');
+      // Add error comment to the diagram
+      mermaidContent = mermaidContent.replace(/```$/, `\n%% Validation warnings: ${errors.join(', ')}\n\`\`\``);
+      console.log('🔧 Applied automatic fixes to Mermaid content');
+    } else {
+      console.log('✅ Mermaid content validation passed');
+    }
   
     const stats = `${uniqueClasses.length} classes shown (${classes.length} total)`;
   

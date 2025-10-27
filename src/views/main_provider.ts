@@ -1,622 +1,845 @@
-import * as vscode from 'vscode';
-import { ProjectStructure } from '../service/java_parser';
-import { marked } from 'marked';
-import { SentryService } from '../service/sentry_service';
+import * as vscode from "vscode";
+import { ProjectStructure } from "../service/java_parser";
+import { marked } from "marked";
+import { SentryService } from "../service/sentry_service";
 
 export class MainViewProvider implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'codedoc.mainView';
-    private _view?: vscode.WebviewView;
-    private _projectStructure?: ProjectStructure;
-    private _isAnalysisStarted: boolean = false;
-    private _isAnalysisCompleted: boolean = false;
-    private _webViewState: 'initial' | 'analyzing' | 'completed' = 'initial';
-    private static _cachedProjectStructure?: ProjectStructure;
-    private static _cachedAnalysisState: { started: boolean; completed: boolean; state: string } = {
-        started: false,
-        completed: false,
-        state: 'initial'
+  public static readonly viewType = "codedoc.mainView";
+  private _view?: vscode.WebviewView;
+  private _projectStructure?: ProjectStructure;
+  private _isAnalysisStarted: boolean = false;
+  private _isAnalysisCompleted: boolean = false;
+  private _webViewState: "initial" | "analyzing" | "completed" = "initial";
+  private static _cachedProjectStructure?: ProjectStructure;
+  private static _cachedAnalysisState: {
+    started: boolean;
+    completed: boolean;
+    state: string;
+  } = {
+    started: false,
+    completed: false,
+    state: "initial",
+  };
+
+  private sentry = SentryService.getInstance();
+
+  constructor(private readonly _extensionUri: vscode.Uri) {
+    console.log("MainViewProvider constructor called");
+    this.sentry.addBreadcrumb("MainViewProvider initialized", "ui");
+
+    // Restore cached state
+    if (MainViewProvider._cachedProjectStructure) {
+      console.log(
+        "Restoring cached project structure with",
+        MainViewProvider._cachedProjectStructure.classes.length,
+        "classes"
+      );
+      this._projectStructure = MainViewProvider._cachedProjectStructure;
+      this._isAnalysisStarted = MainViewProvider._cachedAnalysisState.started;
+      this._isAnalysisCompleted =
+        MainViewProvider._cachedAnalysisState.completed;
+      this._webViewState = MainViewProvider._cachedAnalysisState.state as any;
+
+      this.sentry.addBreadcrumb("Cached project structure restored", "ui", {
+        classCount: MainViewProvider._cachedProjectStructure.classes.length,
+      });
+    } else {
+      console.log("No cached project structure found");
+    }
+  }
+
+  public resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken
+  ) {
+    console.log(
+      "resolveWebviewView called, has cached structure:",
+      !!MainViewProvider._cachedProjectStructure
+    );
+    this._view = webviewView;
+
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this._extensionUri],
     };
 
-    private sentry = SentryService.getInstance();
+    // Enable context retention
+    (webviewView as any).retainContextWhenHidden = true;
 
-    constructor(private readonly _extensionUri: vscode.Uri) {
-        console.log('MainViewProvider constructor called');
-        this.sentry.addBreadcrumb('MainViewProvider initialized', 'ui');
-        
-        // Restore cached state
-        if (MainViewProvider._cachedProjectStructure) {
-            console.log('Restoring cached project structure with', MainViewProvider._cachedProjectStructure.classes.length, 'classes');
-            this._projectStructure = MainViewProvider._cachedProjectStructure;
-            this._isAnalysisStarted = MainViewProvider._cachedAnalysisState.started;
-            this._isAnalysisCompleted = MainViewProvider._cachedAnalysisState.completed;
-            this._webViewState = MainViewProvider._cachedAnalysisState.state as any;
-            
-            this.sentry.addBreadcrumb('Cached project structure restored', 'ui', {
-                classCount: MainViewProvider._cachedProjectStructure.classes.length
-            });
-        } else {
-            console.log('No cached project structure found');
-        }
-    }
+    webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-    public resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
-        _token: vscode.CancellationToken,
-    ) {
-        console.log('resolveWebviewView called, has cached structure:', !!MainViewProvider._cachedProjectStructure);
-        this._view = webviewView;
+    webviewView.onDidDispose(() => {
+      console.log("Webview disposed, preserving state for next session");
+      this._view = undefined;
+      // State is preserved in static variables, so no need to clear project structure
+    });
 
-        webviewView.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [this._extensionUri]
-        };
-        
-        // Enable context retention
-        (webviewView as any).retainContextWhenHidden = true;
+    webviewView.webview.onDidReceiveMessage((message) => {
+      switch (message.type) {
+        case "sendMessage":
+          this._handleUserMessage(message.text);
+          break;
+        case "selectNode":
+          this._handleNodeSelection(message.nodeId);
+          break;
+        case "refreshVisualization":
+          this._refreshVisualization();
+          break;
+        case "generateProjectDocs":
+          this._generateProjectDocumentation();
+          break;
+        case "generateClassDocs":
+          this._generateClassDocumentation();
+          break;
+        case "exportClassDocs":
+          this._exportClassDocumentation(message.content);
+          break;
+        case "generateDiagram":
+          this._handleDiagramGeneration(message);
+          break;
+        case "exportDiagram":
+          this._handleDiagramExport(message.diagramData);
+          break;
+        case "previewDiagram":
+          this._handleDiagramPreview(message.diagramData);
+          break;
+        case "saveDiagramToDocs":
+          this._handleSaveDiagramToDocs(message.diagramData);
+          break;
+        case "exportDiagramAsImage":
+          this._handleDiagramExportAsImage(message.diagramData);
+          break;
+        case "openDiagramAsImage":
+          this._handleDiagramOpenAsImage(message.diagramData);
+          break;
+      }
+    });
 
-        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+    this._restoreWebViewState();
+  }
 
-        webviewView.onDidDispose(() => {
-            console.log('Webview disposed, preserving state for next session');
-            this._view = undefined;
-            // State is preserved in static variables, so no need to clear project structure
-        });
+  private _restoreWebViewState() {
+    console.log("Restoring webview state. Current state:", {
+      hasProjectStructure: !!this._projectStructure,
+      isAnalysisStarted: this._isAnalysisStarted,
+      isAnalysisCompleted: this._isAnalysisCompleted,
+      webViewState: this._webViewState,
+    });
 
-        webviewView.webview.onDidReceiveMessage(
-            message => {
-                switch (message.type) {
-                    case 'sendMessage':
-                        this._handleUserMessage(message.text);
-                        break;
-                    case 'selectNode':
-                        this._handleNodeSelection(message.nodeId);
-                        break;
-                    case 'refreshVisualization':
-                        this._refreshVisualization();
-                        break;
-                    case 'generateProjectDocs':
-                        this._generateProjectDocumentation();
-                        break;
-                    case 'generateClassDocs':
-                        this._generateClassDocumentation();
-                        break;
-                    case 'exportClassDocs':
-                        this._exportClassDocumentation(message.content);
-                        break;
-                    case 'generateDiagram':
-                        this._handleDiagramGeneration(message);
-                        break;
-                    case 'exportDiagram':
-                        this._handleDiagramExport(message.diagramData);
-                        break;
-                    case 'previewDiagram':
-                        this._handleDiagramPreview(message.diagramData);
-                        break;
-                    case 'saveDiagramToDocs':
-                        this._handleSaveDiagramToDocs(message.diagramData);
-                        break;
-                    case 'exportDiagramAsImage':
-                        this._handleDiagramExportAsImage(message.diagramData);
-                        break;
-                    case 'openDiagramAsImage':
-                        this._handleDiagramOpenAsImage(message.diagramData);
-                        break;
-                }
-            }
-        );
-        
-        this._restoreWebViewState();
-    }
-    
-    private _restoreWebViewState() {
-        console.log('Restoring webview state. Current state:', {
-            hasProjectStructure: !!this._projectStructure,
-            isAnalysisStarted: this._isAnalysisStarted,
-            isAnalysisCompleted: this._isAnalysisCompleted,
-            webViewState: this._webViewState
-        });
-        
-        if (this._projectStructure) {
-            console.log('Resending existing visualization data to newly resolved webview');
-            setTimeout(() => {
-                if (this._view && this._view.webview) {
-                    this._view.webview.postMessage({
-                        type: 'updateVisualization',
-                        data: this._prepareVisualizationData(this._projectStructure!)
-                    });
-                
-                    this._view.webview.postMessage({
-                        type: 'updateProjectStructureForDiagrams',
-                        data: this._projectStructure
-                    });
-                    
-                    // Restore the correct UI state based on analysis status
-                    if (this._isAnalysisCompleted) {
-                        this._view.webview.postMessage({
-                            type: 'analysisCompleted'
-                        });
-                    } else if (this._isAnalysisStarted) {
-                        this._view.webview.postMessage({
-                            type: 'analysisStarted'
-                        });
-                    }
-                }
-            }, 100); 
-        } else if (!this._isAnalysisStarted && this._webViewState === 'initial') {
-            // Don't auto-trigger analysis - let user manually trigger it
-            console.log('No project structure available, waiting for user to trigger analysis');
-            // Just show the initial state without auto-analysis
-        } else if (this._webViewState === 'analyzing') {
-            setTimeout(() => {
-                if (this._view && this._view.webview) {
-                    this._view.webview.postMessage({
-                        type: 'analysisStarted'
-                    });
-                }
-            }, 100);
-        } else if (this._webViewState === 'completed' && this._projectStructure) {
-            setTimeout(() => {
-                if (this._view && this._view.webview) {
-                    this._view.webview.postMessage({
-                        type: 'updateVisualization',
-                        data: this._prepareVisualizationData(this._projectStructure!)
-                    });
-                    
-                    this._view.webview.postMessage({
-                        type: 'analysisCompleted'
-                    });
-                }
-            }, 100);
-        }
-    }
-    
-    public updateVisualization(structure: ProjectStructure) {
-        this._projectStructure = structure;
-        this._isAnalysisCompleted = true;
-        this._webViewState = 'completed';
-        
-        // Cache the state for future webview sessions
-        MainViewProvider._cachedProjectStructure = structure;
-        MainViewProvider._cachedAnalysisState = {
-            started: this._isAnalysisStarted,
-            completed: this._isAnalysisCompleted,
-            state: this._webViewState
-        };
-        
+    if (this._projectStructure) {
+      console.log(
+        "Resending existing visualization data to newly resolved webview"
+      );
+      setTimeout(() => {
         if (this._view && this._view.webview) {
-            console.log('Sending visualization data to webview');
-            setTimeout(() => {
-                if (this._view && this._view.webview) {
-                    console.log('Actually sending visualization data');
-                    this._view.webview.postMessage({
-                        type: 'updateVisualization',
-                        data: this._prepareVisualizationData(structure)
-                    });
-                    
-                    this._view.webview.postMessage({
-                        type: 'updateProjectStructureForDiagrams',
-                        data: structure
-                    });
-                    
-                    this._view.webview.postMessage({
-                        type: 'analysisCompleted'
-                    });
-                }
-            }, 100); 
-        } else {
-            console.log('Webview not ready, cannot send data');
-        }
-    }
+          this._view.webview.postMessage({
+            type: "updateVisualization",
+            data: this._prepareVisualizationData(this._projectStructure!),
+          });
 
-    public clearChat() {
-        if (this._view) {
-            this._view.webview.postMessage({ type: 'clearChat' });
-        }
-    }
+          this._view.webview.postMessage({
+            type: "updateProjectStructureForDiagrams",
+            data: this._projectStructure,
+          });
 
-    public showClassDocumentation(content: string) {
-        if (this._view) {
-            console.log('showClassDocumentation called with content length:', content?.length || 0);
-            console.log('Content preview:', content?.substring(0, 200) + (content && content.length > 200 ? '...' : ''));
-            
-            // Hide loading state
-            this._view.webview.postMessage({ type: 'hideDocumentationLoading' });
-            
-            const isHtml = content && (
-                content.startsWith('<') || 
-                content.includes('<h1') || 
-                content.includes('<h2') || 
-                content.includes('<h3') || 
-                content.includes('<p>') || 
-                content.includes('<div') ||
-                content.includes('<ul') ||
-                content.includes('<ol') ||
-                content.includes('<li') ||
-                content.includes('<strong') ||
-                content.includes('<em')
-            );
-            console.log('Content is HTML:', isHtml);
-            
-            try {
-                if (!isHtml) {
-                    console.log('Converting markdown to HTML');
-                    const result = marked(content);
-                    if (result instanceof Promise) {
-                        result.then(htmlContent => {
-                            console.log('Converted HTML length:', htmlContent?.length || 0);
-                            console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
-                            this._view!.webview.postMessage({
-                                type: 'showClassDocumentation',
-                                content: htmlContent
-                            });
-                        });
-                    } else {
-                        console.log('Converted HTML length:', result?.length || 0);
-                        console.log('Converted HTML preview:', result?.substring(0, 200) + (result && result.length > 200 ? '...' : ''));
-                        this._view!.webview.postMessage({
-                                type: 'showClassDocumentation',
-                                content: result
-                        });
-                    }
-                } else {
-                    console.log('Content is already HTML, sending as is');
-                    this._view!.webview.postMessage({
-                                type: 'showClassDocumentation',
-                                content: content
-                        });
-                }
-            } catch (error) {
-                console.error('Error converting content to HTML:', error);
-                this._view!.webview.postMessage({
-                                type: 'showClassDocumentation',
-                                content: content
-                        });
-            }
-        }
-    }
-
-    public showProjectDocumentation(content: string) {
-        if (this._view) {
-            console.log('showProjectDocumentation called with content length:', content?.length || 0);
-            console.log('Content preview:', content?.substring(0, 200) + (content && content.length > 200 ? '...' : ''));
-            
-            // Hide loading state
-            this._view.webview.postMessage({ type: 'hideDocumentationLoading' });
-            
-            const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>'));
-            console.log('Content is HTML:', isHtml);
-            
-            try {
-                if (!isHtml) {
-                    console.log('Converting markdown to HTML');
-                    const result = marked(content);
-                    if (result instanceof Promise) {
-                        result.then(htmlContent => {
-                            console.log('Converted HTML length:', htmlContent?.length || 0);
-                            console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
-                            this._view!.webview.postMessage({
-                                type: 'showProjectOverview',
-                                text: htmlContent,
-                                markdown: content  
-                            });
-                        }).catch(error => {
-                            console.error('Error converting markdown to HTML:', error);
-                            this._view!.webview.postMessage({
-                                type: 'showProjectOverview',
-                                text: `<pre>${content || ''}</pre>`,
-                                markdown: content  
-                            });
-                        });
-                    } else {
-                        const htmlContent = result as string;
-                        console.log('Converted HTML length:', htmlContent?.length || 0);
-                        console.log('Converted HTML preview:', htmlContent?.substring(0, 200) + (htmlContent && htmlContent.length > 200 ? '...' : ''));
-                        this._view.webview.postMessage({
-                            type: 'showProjectOverview',
-                            text: htmlContent,
-                            markdown: content  
-                        });
-                    }
-                } else {
-                    console.log('Content is already HTML, using as-is');
-                    this._view.webview.postMessage({
-                        type: 'showProjectOverview',
-                        text: content,
-                        markdown: content  
-                    });
-                }
-            } catch (error) {
-                console.error('Error converting markdown to HTML:', error);
-                this._view.webview.postMessage({
-                    type: 'showProjectOverview',
-                    text: `<pre>${content || ''}</pre>`,
-                    markdown: content  
-                });
-            }
-        }
-    }
-
-    public showChatResponse(response: any) {
-        console.log('showChatResponse called with:', response);
-        if (this._view) {
-
-            let chatResponse = response;
-            if (response && response.success && response.data) {
-                chatResponse = response.data;
-            }
-            console.log('Unwrapped chat response:', chatResponse);
-            
-            switch (chatResponse.action) {
-                case 'generateDocumentation':
-                    let documentationContent = chatResponse.data;
-                    console.log('Documentation content:', documentationContent);
-                    
-                    if (documentationContent) {
-                        const htmlContent = marked(documentationContent);
-                        this._view.webview.postMessage({
-                            type: 'showExplanation',
-                            text: htmlContent,
-                            markdown: documentationContent
-                        });
-                        this._view.webview.postMessage({
-                            type: 'botResponse',
-                            text: chatResponse.message || 'I\'ve generated the documentation for you. You can find it in the Code Explanation tab.'
-                        });
-                    } else {
-                        this._view.webview.postMessage({
-                            type: 'botResponse',
-                            text: chatResponse.message || 'I\'ve generated the documentation for you.'
-                        });
-                    }
-                    break;
-                case 'generateVisualization':
-                    if (chatResponse.message) {
-                        this._view.webview.postMessage({
-                            type: 'botResponse',
-                            text: chatResponse.message
-                        });
-                    } else {
-                        this._view.webview.postMessage({
-                            type: 'botResponse',
-                            text: 'I\'ve created the visualization for you.'
-                        });
-                    }
-                    break;
-                case 'answerQuestion':
-                    const answerHtmlContent = marked(chatResponse.message || 'Here\'s what I found:');
-                    this._view.webview.postMessage({
-                        type: 'botResponse',
-                        text: answerHtmlContent
-                    });
-                    break;
-                case 'clarify':
-                    const clarifyHtmlContent = marked(chatResponse.message || 'I\'m not sure what you want to do. You can ask me to generate documentation, create visualizations, or answer questions about your code.');
-                    this._view.webview.postMessage({
-                        type: 'botResponse',
-                        text: clarifyHtmlContent
-                    });
-                        break;
-                    default:
-                        const defaultHtmlContent = marked(chatResponse.message || 'I\'ve processed your request.');
-                        this._view.webview.postMessage({
-                            type: 'botResponse',
-                            text: defaultHtmlContent
-                        });
-            }
-        }
-    }
-
-    public showChatError(error: string) {
-        if (this._view) {
+          // Restore the correct UI state based on analysis status
+          if (this._isAnalysisCompleted) {
             this._view.webview.postMessage({
-                type: 'botResponse',
-                text: `❌ Error: ${error}`
+              type: "analysisCompleted",
             });
-        }
-    }
-
-    public showArchitectureDescription(description: string) {
-        if (this._view) {
-            // Convert markdown to HTML for better display
-            const htmlContent = marked(description);
+          } else if (this._isAnalysisStarted) {
             this._view.webview.postMessage({
-                type: 'showArchitectureDescription',
+              type: "analysisStarted",
+            });
+          }
+        }
+      }, 100);
+    } else if (!this._isAnalysisStarted && this._webViewState === "initial") {
+      // Don't auto-trigger analysis - let user manually trigger it
+      console.log(
+        "No project structure available, waiting for user to trigger analysis"
+      );
+      // Just show the initial state without auto-analysis
+    } else if (this._webViewState === "analyzing") {
+      setTimeout(() => {
+        if (this._view && this._view.webview) {
+          this._view.webview.postMessage({
+            type: "analysisStarted",
+          });
+        }
+      }, 100);
+    } else if (this._webViewState === "completed" && this._projectStructure) {
+      setTimeout(() => {
+        if (this._view && this._view.webview) {
+          this._view.webview.postMessage({
+            type: "updateVisualization",
+            data: this._prepareVisualizationData(this._projectStructure!),
+          });
+
+          this._view.webview.postMessage({
+            type: "analysisCompleted",
+          });
+        }
+      }, 100);
+    }
+  }
+
+  public updateVisualization(structure: ProjectStructure) {
+    this._projectStructure = structure;
+    this._isAnalysisCompleted = true;
+    this._webViewState = "completed";
+
+    // Cache the state for future webview sessions
+    MainViewProvider._cachedProjectStructure = structure;
+    MainViewProvider._cachedAnalysisState = {
+      started: this._isAnalysisStarted,
+      completed: this._isAnalysisCompleted,
+      state: this._webViewState,
+    };
+
+    if (this._view && this._view.webview) {
+      console.log("Sending visualization data to webview");
+      setTimeout(() => {
+        if (this._view && this._view.webview) {
+          console.log("Actually sending visualization data");
+          this._view.webview.postMessage({
+            type: "updateVisualization",
+            data: this._prepareVisualizationData(structure),
+          });
+
+          this._view.webview.postMessage({
+            type: "updateProjectStructureForDiagrams",
+            data: structure,
+          });
+
+          this._view.webview.postMessage({
+            type: "analysisCompleted",
+          });
+        }
+      }, 100);
+    } else {
+      console.log("Webview not ready, cannot send data");
+    }
+  }
+
+  public clearChat() {
+    if (this._view) {
+      this._view.webview.postMessage({ type: "clearChat" });
+    }
+  }
+
+  public testMarkdownConversion() {
+    // Test method to verify markdown conversion is working
+    // Simulate the actual problem: content wrapped in markdown code fences
+    const testMarkdown = `\`\`\`markdown
+# Test Documentation
+
+This is a **test** of markdown conversion.
+
+## Features
+- Item 1
+- Item 2
+- Item 3
+
+### Code Example
+\`\`\`java
+public class Test {
+    public void method() {
+        System.out.println("Hello");
+    }
+}
+\`\`\`
+
+### Mermaid Diagram
+\`\`\`mermaid
+classDiagram
+    class Test {
+        +method()
+    }
+\`\`\`
+\`\`\``;
+    console.log(
+      "🧪 Testing markdown conversion with wrapped content (simulating agent output)"
+    );
+    this.showClassDocumentation(testMarkdown);
+  }
+
+  public showClassDocumentation(content: string) {
+    if (this._view) {
+      console.log(
+        "showClassDocumentation called with content length:",
+        content?.length || 0
+      );
+      console.log(
+        "Content preview:",
+        content?.substring(0, 200) +
+          (content && content.length > 200 ? "..." : "")
+      );
+
+      // Hide loading state
+      this._view.webview.postMessage({ type: "hideDocumentationLoading" });
+
+      try {
+        // Always convert markdown to HTML for consistent display
+        console.log("Converting markdown to HTML using marked library");
+        console.log("Input content type:", typeof content);
+        console.log("Input content sample:", content?.substring(0, 300));
+
+        // Strip outer markdown code fences if present (for display only)
+        let processedContent = content || "";
+        const trimmedContent = processedContent.trim();
+
+        // Check for markdown code fences with more flexible pattern
+        if (
+          trimmedContent.startsWith("```markdown") &&
+          trimmedContent.endsWith("```")
+        ) {
+          console.log(
+            "🔧 Detected markdown code fences, stripping for display"
+          );
+          console.log("Original length:", processedContent.length);
+
+          // Remove opening ```markdown (with optional whitespace/newline)
+          processedContent = trimmedContent.replace(/^```markdown\s*/, "");
+          // Remove closing ``` (with optional whitespace before)
+          processedContent = processedContent.replace(/\s*```$/, "");
+
+          console.log("✂️ After stripping length:", processedContent.length);
+          console.log(
+            "✂️ Stripped content sample:",
+            processedContent.substring(0, 300)
+          );
+        } else {
+          console.log("ℹ️ No markdown code fences detected");
+          console.log(
+            "Starts with ```markdown:",
+            trimmedContent.startsWith("```markdown")
+          );
+          console.log("Ends with ```:", trimmedContent.endsWith("```"));
+          console.log("First 50 chars:", trimmedContent.substring(0, 50));
+          console.log(
+            "Last 50 chars:",
+            trimmedContent.substring(Math.max(0, trimmedContent.length - 50))
+          );
+        }
+
+        const result = marked(processedContent);
+        if (result instanceof Promise) {
+          result
+            .then((htmlContent) => {
+              console.log("✅ Async conversion successful");
+              console.log("Converted HTML length:", htmlContent?.length || 0);
+              console.log(
+                "Converted HTML preview:",
+                htmlContent?.substring(0, 300) +
+                  (htmlContent && htmlContent.length > 300 ? "..." : "")
+              );
+              this._view!.webview.postMessage({
+                type: "showClassDocumentation",
+                content: htmlContent,
                 text: htmlContent,
-                markdown: description
+                markdown: content,
+              });
+            })
+            .catch((error) => {
+              console.error("❌ Error in async markdown conversion:", error);
+              this._view!.webview.postMessage({
+                type: "showClassDocumentation",
+                content: content,
+                text: content,
+                markdown: content,
+              });
             });
+          return;
+        } else {
+          console.log("✅ Sync conversion successful");
+          console.log("Converted HTML length:", result?.length || 0);
+          console.log(
+            "Converted HTML preview:",
+            result?.substring(0, 300) +
+              (result && result.length > 300 ? "..." : "")
+          );
+          this._view!.webview.postMessage({
+            type: "showClassDocumentation",
+            content: result,
+            text: result,
+            markdown: content,
+          });
         }
-    }
-
-    private _handleUserMessage(message: string) {
-        if (this._view) {
-            this._view.webview.postMessage({
-                type: 'botResponse',
-                text: 'Thinking...'
-            });
-            
-            vscode.commands.executeCommand('codedoc.processChatMessage', message);
-        }
-    }
-
-    private _handleNodeSelection(nodeId: string) {
-        const selectedClass = this._projectStructure?.classes.find(cls => cls.name === nodeId);
-        if (selectedClass) {
-            vscode.workspace.openTextDocument(selectedClass.filePath).then(doc => {
-                vscode.window.showTextDocument(doc);
-            });
-        }
-    }
-    private _refreshVisualization() {
-        this._isAnalysisStarted = true;
-        this._isAnalysisCompleted = false;
-        this._webViewState = 'analyzing';
-        
-        if (this._view) {
-            this._view.webview.postMessage({ type: 'refreshing' });
-            this._view.webview.postMessage({ type: 'analysisStarted' });
-            vscode.commands.executeCommand('codedoc.visualizeCode');
-        }
-    }
-
-    private _generateProjectDocumentation() {
-        if (this._view) {
-            this._view.webview.postMessage({ 
-                type: 'showDocumentationLoading', 
-                message: 'Generating project documentation...',
-                docType: 'project'
-            });
-        }
-        vscode.commands.executeCommand('codedoc.generateDocs');
-    }
-
-    private _generateClassDocumentation() {
-        if (this._view) {
-            this._view.webview.postMessage({ 
-                type: 'showDocumentationLoading', 
-                message: 'Generating class documentation...',
-                docType: 'class'
-            });
-        }
-        vscode.commands.executeCommand('codedoc.generateClassDocs');
-    }
-
-    private _exportClassDocumentation(content: string) {
-        vscode.commands.executeCommand('codedoc.exportClassDocs', content);
-    }
-    private _handleDiagramGeneration(message: any) {
-        if (!this._projectStructure) {
-            this._view?.webview.postMessage({
-                type: 'diagramError',
-                error: 'Project structure not available. Please analyze the project first.'
-            });
-            return;
-        }
-
-        vscode.commands.executeCommand('codedoc.generateDiagram', {
-            diagramType: message.diagramType,
-            scope: message.scope,
-            module: message.module,
-            projectStructure: this._projectStructure
+      } catch (error) {
+        console.error("❌ Error converting content to HTML:", error);
+        console.error("Error details:", error);
+        this._view!.webview.postMessage({
+          type: "showClassDocumentation",
+          content: content,
         });
+      }
     }
-    private _handleDiagramExport(diagramData: any) {
-        vscode.commands.executeCommand('codedoc.exportDiagram', diagramData);
-    }
+  }
 
-    private _handleDiagramPreview(diagramData: any) {
-        vscode.commands.executeCommand('codedoc.previewDiagram', diagramData);
-    }
+  public showProjectDocumentation(content: string) {
+    if (this._view) {
+      console.log(
+        "showProjectDocumentation called with content length:",
+        content?.length || 0
+      );
+      console.log(
+        "Content preview:",
+        content?.substring(0, 200) +
+          (content && content.length > 200 ? "..." : "")
+      );
 
-    private _handleSaveDiagramToDocs(diagramData: any) {
-        vscode.commands.executeCommand('codedoc.saveDiagramToDocs', diagramData);
-    }
+      // Hide loading state
+      this._view.webview.postMessage({ type: "hideDocumentationLoading" });
 
-    private _handleDiagramExportAsImage(diagramData: any) {
-        console.log('Handling exportDiagramAsImage message with data:', diagramData);
-        vscode.commands.executeCommand('codedoc.exportDiagramAsImage', diagramData);
-    }
+      const isHtml =
+        content &&
+        (content.startsWith("<") ||
+          content.includes("<h1") ||
+          content.includes("<p>"));
+      console.log("Content is HTML:", isHtml);
 
-    private _handleDiagramOpenAsImage(diagramData: any) {
-        console.log('Handling openDiagramAsImage message with data:', diagramData);
-        vscode.commands.executeCommand('codedoc.openDiagramAsImage', diagramData);
-    }
-
-    // public showGeneratedDiagram(diagramData: any) {
-    //     if (this._view && this._view.webview) {
-    //         this._view.webview.postMessage({
-    //             type: 'diagramGenerated',
-    //             data: diagramData
-    //         });
-    //     }
-    // }
-    public showGeneratedDiagram(diagramData: any) {
-        if (this._view && this._view.webview) {
-            // Convert diagramData.content (Markdown) to HTML
-            let htmlContent = diagramData.content;
-            // Only convert if not already HTML
-            const isHtml = htmlContent && (
-                htmlContent.startsWith('<') ||
-                htmlContent.includes('<h1') ||
-                htmlContent.includes('<div')
+      try {
+        if (!isHtml) {
+          console.log("Converting markdown to HTML");
+          const result = marked(content);
+          if (result instanceof Promise) {
+            result
+              .then((htmlContent) => {
+                console.log("Converted HTML length:", htmlContent?.length || 0);
+                console.log(
+                  "Converted HTML preview:",
+                  htmlContent?.substring(0, 200) +
+                    (htmlContent && htmlContent.length > 200 ? "..." : "")
+                );
+                this._view!.webview.postMessage({
+                  type: "showProjectOverview",
+                  text: htmlContent,
+                  markdown: content,
+                });
+              })
+              .catch((error) => {
+                console.error("Error converting markdown to HTML:", error);
+                this._view!.webview.postMessage({
+                  type: "showProjectOverview",
+                  text: `<pre>${content || ""}</pre>`,
+                  markdown: content,
+                });
+              });
+          } else {
+            const htmlContent = result as string;
+            console.log("Converted HTML length:", htmlContent?.length || 0);
+            console.log(
+              "Converted HTML preview:",
+              htmlContent?.substring(0, 200) +
+                (htmlContent && htmlContent.length > 200 ? "..." : "")
             );
-            if (!isHtml) {
-                htmlContent = marked(htmlContent);
-            }
             this._view.webview.postMessage({
-                type: 'diagramGenerated',
-                data: {
-                    ...diagramData,
-                    content: htmlContent // send HTML to the webview
-                }
+              type: "showProjectOverview",
+              text: htmlContent,
+              markdown: content,
             });
+          }
+        } else {
+          console.log("Content is already HTML, using as-is");
+          this._view.webview.postMessage({
+            type: "showProjectOverview",
+            text: content,
+            markdown: content,
+          });
         }
+      } catch (error) {
+        console.error("Error converting markdown to HTML:", error);
+        this._view.webview.postMessage({
+          type: "showProjectOverview",
+          text: `<pre>${content || ""}</pre>`,
+          markdown: content,
+        });
+      }
+    }
+  }
+
+  public showChatResponse(response: any) {
+    console.log("showChatResponse called with:", response);
+    if (this._view) {
+      let chatResponse = response;
+      if (response && response.success && response.data) {
+        chatResponse = response.data;
+      }
+      console.log("Unwrapped chat response:", chatResponse);
+
+      switch (chatResponse.action) {
+        case "generateDocumentation":
+          let documentationContent = chatResponse.data;
+          console.log("Documentation content:", documentationContent);
+
+          if (documentationContent) {
+            const htmlContent = marked(documentationContent);
+            this._view.webview.postMessage({
+              type: "showExplanation",
+              text: htmlContent,
+              markdown: documentationContent,
+            });
+            this._view.webview.postMessage({
+              type: "botResponse",
+              text:
+                chatResponse.message ||
+                "I've generated the documentation for you. You can find it in the Code Explanation tab.",
+            });
+          } else {
+            this._view.webview.postMessage({
+              type: "botResponse",
+              text:
+                chatResponse.message ||
+                "I've generated the documentation for you.",
+            });
+          }
+          break;
+        case "generateVisualization":
+          if (chatResponse.message) {
+            this._view.webview.postMessage({
+              type: "botResponse",
+              text: chatResponse.message,
+            });
+          } else {
+            this._view.webview.postMessage({
+              type: "botResponse",
+              text: "I've created the visualization for you.",
+            });
+          }
+          break;
+        case "answerQuestion":
+          const answerHtmlContent = marked(
+            chatResponse.message || "Here's what I found:"
+          );
+          this._view.webview.postMessage({
+            type: "botResponse",
+            text: answerHtmlContent,
+          });
+          break;
+        case "clarify":
+          const clarifyHtmlContent = marked(
+            chatResponse.message ||
+              "I'm not sure what you want to do. You can ask me to generate documentation, create visualizations, or answer questions about your code."
+          );
+          this._view.webview.postMessage({
+            type: "botResponse",
+            text: clarifyHtmlContent,
+          });
+          break;
+        default:
+          const defaultHtmlContent = marked(
+            chatResponse.message || "I've processed your request."
+          );
+          this._view.webview.postMessage({
+            type: "botResponse",
+            text: defaultHtmlContent,
+          });
+      }
+    }
+  }
+
+  public showChatError(error: string) {
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: "botResponse",
+        text: `❌ Error: ${error}`,
+      });
+    }
+  }
+
+  public showArchitectureDescription(description: string) {
+    if (this._view) {
+      // Convert markdown to HTML for better display
+      const htmlContent = marked(description);
+      this._view.webview.postMessage({
+        type: "showArchitectureDescription",
+        text: htmlContent,
+        markdown: description,
+      });
+    }
+  }
+
+  private _handleUserMessage(message: string) {
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: "botResponse",
+        text: "Thinking...",
+      });
+
+      vscode.commands.executeCommand("codedoc.processChatMessage", message);
+    }
+  }
+
+  private _handleNodeSelection(nodeId: string) {
+    const selectedClass = this._projectStructure?.classes.find(
+      (cls) => cls.name === nodeId
+    );
+    if (selectedClass) {
+      vscode.workspace.openTextDocument(selectedClass.filePath).then((doc) => {
+        vscode.window.showTextDocument(doc);
+      });
+    }
+  }
+  private _refreshVisualization() {
+    this._isAnalysisStarted = true;
+    this._isAnalysisCompleted = false;
+    this._webViewState = "analyzing";
+
+    if (this._view) {
+      this._view.webview.postMessage({ type: "refreshing" });
+      this._view.webview.postMessage({ type: "analysisStarted" });
+      vscode.commands.executeCommand("codedoc.visualizeCode");
+    }
+  }
+
+  private _generateProjectDocumentation() {
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: "showDocumentationLoading",
+        message: "Generating project documentation...",
+        docType: "project",
+      });
+    }
+    vscode.commands.executeCommand("codedoc.generateDocs");
+  }
+
+  private _generateClassDocumentation() {
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: "showDocumentationLoading",
+        message: "Generating class documentation...",
+        docType: "class",
+      });
+    }
+    vscode.commands.executeCommand("codedoc.generateClassDocs");
+  }
+
+  private _exportClassDocumentation(content: string) {
+    vscode.commands.executeCommand("codedoc.exportClassDocs", content);
+  }
+  private _handleDiagramGeneration(message: any) {
+    if (!this._projectStructure) {
+      this._view?.webview.postMessage({
+        type: "diagramError",
+        error:
+          "Project structure not available. Please analyze the project first.",
+      });
+      return;
     }
 
-    private _prepareVisualizationData(structure: ProjectStructure) {
-        const layers = {
-            controllers: structure.classes.filter(cls => 
-                cls.annotations.some(ann => ann.includes('@Controller') || ann.includes('@RestController')) ||
-                cls.package.includes('.controller') ||
-                cls.name.endsWith('Controller')
-            ),
-            services: structure.classes.filter(cls => 
-                cls.annotations.some(ann => ann.includes('@Service')) ||
-                cls.package.includes('.service') ||
-                cls.name.endsWith('Service') ||
-                cls.name.endsWith('ServiceImpl')
-            ),
-            repositories: structure.classes.filter(cls => 
-                cls.annotations.some(ann => ann.includes('@Repository')) ||
-                cls.package.includes('.repository') ||
-                cls.name.endsWith('Repository')
-            ),
-            entities: structure.classes.filter(cls => 
-                cls.annotations.some(ann => ann.includes('@Entity')) ||
-                cls.package.includes('.entity') ||
-                cls.package.includes('.domain.entity')
-            ),
-            others: structure.classes.filter(cls => 
-                !cls.annotations.some(ann => 
-                    ann.includes('@Controller') || ann.includes('@RestController') ||
-                    ann.includes('@Service') || ann.includes('@Repository') || ann.includes('@Entity')
-                ) &&
-                !cls.package.includes('.controller') &&
-                !cls.package.includes('.service') &&
-                !cls.name.endsWith('Service') &&
-                !cls.name.endsWith('ServiceImpl') &&
-                !cls.package.includes('.repository') &&
-                !cls.name.endsWith('Repository') &&
-                !cls.package.includes('.entity') &&
-                !cls.package.includes('.domain.entity') &&
-                !cls.name.endsWith('Controller')
-            )
-        };
+    vscode.commands.executeCommand("codedoc.generateDiagram", {
+      diagramType: message.diagramType,
+      scope: message.scope,
+      module: message.module,
+      projectStructure: this._projectStructure,
+    });
+  }
+  private _handleDiagramExport(diagramData: any) {
+    vscode.commands.executeCommand("codedoc.exportDiagram", diagramData);
+  }
 
-        const dependencies = structure.relationships.map(rel => ({
-            from: rel.from,
-            to: rel.to,
-            type: rel.type,
-            method: rel.method
-        }));
+  private _handleDiagramPreview(diagramData: any) {
+    vscode.commands.executeCommand("codedoc.previewDiagram", diagramData);
+  }
 
-        return {
-            layers,
-            dependencies,
-            stats: {
-                totalClasses: structure.classes.length,
-                controllers: layers.controllers.length,
-                services: layers.services.length,
-                repositories: layers.repositories.length,
-                entities: layers.entities.length,
-                others: layers.others.length,
-                dependencies: dependencies.length
-            }
-        };
+  private _handleSaveDiagramToDocs(diagramData: any) {
+    vscode.commands.executeCommand("codedoc.saveDiagramToDocs", diagramData);
+  }
+
+  private _handleDiagramExportAsImage(diagramData: any) {
+    console.log(
+      "Handling exportDiagramAsImage message with data:",
+      diagramData
+    );
+    vscode.commands.executeCommand("codedoc.exportDiagramAsImage", diagramData);
+  }
+
+  private _handleDiagramOpenAsImage(diagramData: any) {
+    console.log("Handling openDiagramAsImage message with data:", diagramData);
+    vscode.commands.executeCommand("codedoc.openDiagramAsImage", diagramData);
+  }
+
+  // public showGeneratedDiagram(diagramData: any) {
+  //     if (this._view && this._view.webview) {
+  //         this._view.webview.postMessage({
+  //             type: 'diagramGenerated',
+  //             data: diagramData
+  //         });
+  //     }
+  // }
+  public showGeneratedDiagram(diagramData: any) {
+    if (this._view && this._view.webview) {
+      console.log("🎨 showGeneratedDiagram called with:", diagramData);
+      console.log(
+        "📄 Raw content preview:",
+        diagramData.content?.substring(0, 200)
+      );
+
+      try {
+        // Always convert markdown to HTML for consistent display
+        console.log(
+          "🔄 Converting diagram content to HTML using marked library"
+        );
+
+        // Strip outer markdown code fences if present (for display only)
+        let processedContent = diagramData.content || "";
+        const trimmedContent = processedContent.trim();
+
+        // Check for markdown code fences with more flexible pattern
+        if (
+          trimmedContent.startsWith("```markdown") &&
+          trimmedContent.endsWith("```")
+        ) {
+          console.log(
+            "🔧 Detected markdown code fences, stripping for display"
+          );
+          processedContent = trimmedContent
+            .replace(/^```markdown\s*/, "")
+            .replace(/\s*```$/, "");
+          console.log(
+            "✂️ Stripped content preview:",
+            processedContent.substring(0, 200)
+          );
+        }
+
+        const result = marked(processedContent);
+        if (result instanceof Promise) {
+          result
+            .then((htmlContent) => {
+              console.log("✅ Async diagram conversion successful");
+              console.log(
+                "📊 Converted HTML preview:",
+                htmlContent?.substring(0, 200)
+              );
+              this._view!.webview.postMessage({
+                type: "diagramGenerated",
+                data: {
+                  ...diagramData,
+                  content: htmlContent,
+                  text: htmlContent,
+                  markdown: diagramData.content,
+                },
+              });
+            })
+            .catch((error) => {
+              console.error("❌ Error in async diagram conversion:", error);
+              this._view!.webview.postMessage({
+                type: "diagramGenerated",
+                data: {
+                  ...diagramData,
+                  content: diagramData.content,
+                  text: diagramData.content,
+                  markdown: diagramData.content,
+                },
+              });
+            });
+          return;
+        } else {
+          console.log("✅ Sync diagram conversion successful");
+          console.log("📊 Converted HTML preview:", result?.substring(0, 200));
+          this._view.webview.postMessage({
+            type: "diagramGenerated",
+            data: {
+              ...diagramData,
+              content: result,
+              text: result,
+              markdown: diagramData.content,
+            },
+          });
+        }
+      } catch (error) {
+        console.error("❌ Error converting diagram content to HTML:", error);
+        this._view.webview.postMessage({
+          type: "diagramGenerated",
+          data: {
+            ...diagramData,
+            content: diagramData.content,
+            text: diagramData.content,
+            markdown: diagramData.content,
+          },
+        });
+      }
     }
+  }
 
-    private _getHtmlForWebview(webview: vscode.Webview): string {
-        return `<!DOCTYPE html>
+  private _prepareVisualizationData(structure: ProjectStructure) {
+    const layers = {
+      controllers: structure.classes.filter(
+        (cls) =>
+          cls.annotations.some(
+            (ann) =>
+              ann.includes("@Controller") || ann.includes("@RestController")
+          ) ||
+          cls.package.includes(".controller") ||
+          cls.name.endsWith("Controller")
+      ),
+      services: structure.classes.filter(
+        (cls) =>
+          cls.annotations.some((ann) => ann.includes("@Service")) ||
+          cls.package.includes(".service") ||
+          cls.name.endsWith("Service") ||
+          cls.name.endsWith("ServiceImpl")
+      ),
+      repositories: structure.classes.filter(
+        (cls) =>
+          cls.annotations.some((ann) => ann.includes("@Repository")) ||
+          cls.package.includes(".repository") ||
+          cls.name.endsWith("Repository")
+      ),
+      entities: structure.classes.filter(
+        (cls) =>
+          cls.annotations.some((ann) => ann.includes("@Entity")) ||
+          cls.package.includes(".entity") ||
+          cls.package.includes(".domain.entity")
+      ),
+      others: structure.classes.filter(
+        (cls) =>
+          !cls.annotations.some(
+            (ann) =>
+              ann.includes("@Controller") ||
+              ann.includes("@RestController") ||
+              ann.includes("@Service") ||
+              ann.includes("@Repository") ||
+              ann.includes("@Entity")
+          ) &&
+          !cls.package.includes(".controller") &&
+          !cls.package.includes(".service") &&
+          !cls.name.endsWith("Service") &&
+          !cls.name.endsWith("ServiceImpl") &&
+          !cls.package.includes(".repository") &&
+          !cls.name.endsWith("Repository") &&
+          !cls.package.includes(".entity") &&
+          !cls.package.includes(".domain.entity") &&
+          !cls.name.endsWith("Controller")
+      ),
+    };
+
+    const dependencies = structure.relationships.map((rel) => ({
+      from: rel.from,
+      to: rel.to,
+      type: rel.type,
+      method: rel.method,
+    }));
+
+    return {
+      layers,
+      dependencies,
+      stats: {
+        totalClasses: structure.classes.length,
+        controllers: layers.controllers.length,
+        services: layers.services.length,
+        repositories: layers.repositories.length,
+        entities: layers.entities.length,
+        others: layers.others.length,
+        dependencies: dependencies.length,
+      },
+    };
+  }
+
+  private _getHtmlForWebview(webview: vscode.Webview): string {
+    return `<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
@@ -1501,7 +1724,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     <div id="projectAnalysisStatus" class="analysis-status" style="display: none;">
                         <div class="spinner"></div>
                         <p>Analyzing project structure...</p>
-                        <small>This may take a moment for large projects</small>
+                        <small>Preparing diagrams for your Java project. This may take a moment for large projects.</small>
                     </div>
                 </div>
             </div>
@@ -1562,6 +1785,15 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     }
                 }
             }
+            
+            // Ensure visualization tab starts in clean state
+            if (tabName === 'visualization2') {
+                // Only show analysis status if we don't have project structure AND user hasn't started analysis
+                if (!currentProjectStructure && !document.getElementById('projectAnalysisStatus').style.display.includes('block')) {
+                    // Don't automatically show analysis - let user initiate it
+                    console.log('Switched to visualization tab - ready for user to generate diagrams');
+                }
+            }
         }
 
         function refreshVisualization() {
@@ -1614,23 +1846,34 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
 
         function showClassDocumentation(content) {
-            console.log('showClassDocumentation called in webview with content length:', content ? content.length : 0);
+            console.log('🎯 showClassDocumentation called in webview');
+            console.log('Content length:', content ? content.length : 0);
+            console.log('Content type:', typeof content);
             if (content) {
-                console.log('Content preview:', content.substring(0, Math.min(200, content.length)) + (content.length > 200 ? '...' : ''));
+                console.log('Content preview (first 300 chars):', content.substring(0, Math.min(300, content.length)) + (content.length > 300 ? '...' : ''));
+                console.log('Content contains HTML tags:', content.includes('<') && content.includes('>'));
             }
             
             document.getElementById('explanation-placeholder').style.display = 'none';
             document.getElementById('class-documentation-content').style.display = 'block';
             const docTextElement = document.getElementById('class-documentation-text');
             
+            if (!docTextElement) {
+                console.error('❌ Could not find class-documentation-text element!');
+                return;
+            }
+            
             // Backend should always send HTML, so just set it directly
-            console.log('Setting content as HTML (backend converted)');
-            docTextElement.innerHTML = content || '';
+            console.log('✅ Setting content as HTML (backend converted)');
+            docTextElement.innerHTML = content || '<p>No content available</p>';
+            
+            console.log('📄 Content set, element innerHTML length:', docTextElement.innerHTML.length);
             
             docTextElement.style.display = 'none';
             docTextElement.offsetHeight; // Trigger reflow
             docTextElement.style.display = 'block';
             
+            console.log('🎨 Applying styling and processing diagrams...');
             setTimeout(() => {
                 applyMarkdownStyling(docTextElement);
                 processMermaidDiagrams(docTextElement);
@@ -1670,67 +1913,148 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     }, 100);
         }
         function processMermaidDiagrams(element) {
-                    console.log('Processing Mermaid diagrams...');
-                    console.log('Element HTML:', element.innerHTML);
-                    
-                    const codeBlocks = element.querySelectorAll('pre code, code');
-                    console.log('Found code blocks:', codeBlocks.length);
-                    let mermaidCount = 0;
-                    
-                    codeBlocks.forEach((block, index) => {
-                        const content = block.textContent || '';
+                    try {
+                        console.log('Processing Mermaid diagrams...');
+                        console.log('Element HTML length:', element.innerHTML.length);
                         
-                        if (content.trim().startsWith('erDiagram') || 
-                            content.trim().startsWith('classDiagram') || 
-                            content.trim().startsWith('graph') ||
-                            content.trim().startsWith('flowchart') ||
-                            content.trim().startsWith('sequenceDiagram') ||
-                            content.trim().startsWith('gantt') ||
-                            content.trim().startsWith('pie') ||
-                            content.trim().startsWith('gitgraph')) {
-                            
-                            console.log('Found Mermaid diagram:', content.substring(0, 50) + '...');
-                            
-                            const mermaidDiv = document.createElement('div');
-                            mermaidDiv.className = 'mermaid';
-                            mermaidDiv.textContent = content.trim();
-                            mermaidDiv.id = 'mermaid-' + Date.now() + '-' + mermaidCount;
-                            mermaidDiv.style.textAlign = 'center';
-                            mermaidDiv.style.margin = '20px 0';
-                            mermaidDiv.style.backgroundColor = 'var(--vscode-editor-background)';
-                            mermaidDiv.style.padding = '20px';
-                            mermaidDiv.style.borderRadius = '8px';
-                            mermaidDiv.style.border = '1px solid var(--vscode-panel-border)';
-                            
-                            const parentPre = block.closest('pre');
-                            if (parentPre) {
-                                parentPre.replaceWith(mermaidDiv);
-                            } else {
-                                block.replaceWith(mermaidDiv);
-                            }
-                            
-                            mermaidCount++;
-                        }
-                    });
-                    
-                    if (mermaidCount > 0 && typeof mermaid !== 'undefined') {
-                        console.log('Rendering ' + mermaidCount + ' Mermaid diagrams...');
-                        try {
-                            mermaid.run({
-                                querySelector: '.mermaid'
-                            });
-                            console.log('Mermaid diagrams rendered successfully');
-                        } catch (error) {
-                            console.error('Error rendering Mermaid diagrams:', error);
+                        // Look for both code blocks and existing mermaid divs
+                        const codeBlocks = element.querySelectorAll('pre code, code, .language-mermaid');
+                        console.log('Found code blocks:', codeBlocks.length);
+                        let mermaidCount = 0;
+                        
+                        codeBlocks.forEach((block, index) => {
                             try {
-                                mermaid.init(undefined, '.mermaid');
-                                console.log('Mermaid diagrams rendered with fallback method');
-                            } catch (fallbackError) {
-                                console.error('Fallback rendering also failed:', fallbackError);
+                                const content = (block.textContent || '').trim();
+                                
+                                // Check if this is a Mermaid diagram
+                                const isMermaid = content.startsWith('erDiagram') || 
+                                    content.startsWith('classDiagram') || 
+                                    content.startsWith('graph') ||
+                                    content.startsWith('flowchart') ||
+                                    content.startsWith('sequenceDiagram') ||
+                                    content.startsWith('gantt') ||
+                                    content.startsWith('pie') ||
+                                    content.startsWith('gitgraph') ||
+                                    content.startsWith('journey') ||
+                                    content.startsWith('stateDiagram') ||
+                                    block.className.includes('language-mermaid') ||
+                                    block.classList.contains('mermaid');
+                                
+                                if (isMermaid && content.length > 0) {
+                                    console.log('Found Mermaid diagram ' + (index + 1) + ':', content.substring(0, 50) + '...');
+                                    
+                                    // Create new mermaid div
+                                    const mermaidDiv = document.createElement('div');
+                                    mermaidDiv.className = 'mermaid';
+                                    mermaidDiv.textContent = content;
+                                    mermaidDiv.id = 'mermaid-' + Date.now() + '-' + mermaidCount;
+                                    
+                                    // Style the mermaid container
+                                    mermaidDiv.style.textAlign = 'center';
+                                    mermaidDiv.style.margin = '20px 0';
+                                    mermaidDiv.style.backgroundColor = 'var(--vscode-editor-background)';
+                                    mermaidDiv.style.padding = '20px';
+                                    mermaidDiv.style.borderRadius = '8px';
+                                    mermaidDiv.style.border = '1px solid var(--vscode-panel-border)';
+                                    mermaidDiv.style.minHeight = '100px';
+                                    
+                                    // Replace the code block with mermaid div
+                                    const parentPre = block.closest('pre');
+                                    if (parentPre) {
+                                        parentPre.parentNode?.replaceChild(mermaidDiv, parentPre);
+                                    } else if (block.parentNode) {
+                                        block.parentNode.replaceChild(mermaidDiv, block);
+                                    }
+                                    
+                                    mermaidCount++;
+                                }
+                            } catch (blockError) {
+                                console.error('Error processing individual code block:', blockError);
                             }
+                        });
+                        
+                        // Render mermaid diagrams if any were found
+                        if (mermaidCount > 0) {
+                            console.log('🎨 Found ' + mermaidCount + ' Mermaid diagrams to render');
+                            
+                            // Wait a bit for DOM to settle, then render
+                            setTimeout(() => {
+                                if (typeof mermaid !== 'undefined') {
+                                    console.log('✅ Mermaid library available, rendering diagrams...');
+                                    
+                                    // Get all mermaid elements to render
+                                    const mermaidElements = document.querySelectorAll('.mermaid');
+                                    console.log('📊 Found ' + mermaidElements.length + ' mermaid elements in DOM');
+                                    
+                                    mermaidElements.forEach((element, index) => {
+                                        console.log('🔍 Mermaid element ' + (index + 1) + ' content:', element.textContent?.substring(0, 100));
+                                    });
+                                    
+                                    try {
+                                        // Don't re-initialize if already initialized, just render
+                                        console.log('🚀 Starting Mermaid rendering...');
+                                        
+                                        // Use the newer run method with specific elements
+                                        mermaid.run({
+                                            nodes: Array.from(mermaidElements)
+                                        }).then(() => {
+                                            console.log('✅ Mermaid diagrams rendered successfully with run()');
+                                            // Verify rendering worked
+                                            mermaidElements.forEach((el, index) => {
+                                                if (el.innerHTML.trim() === el.textContent?.trim()) {
+                                                    console.warn('⚠️ Mermaid element ' + (index + 1) + ' was not rendered (content unchanged)');
+                                                } else {
+                                                    console.log('✅ Mermaid element ' + (index + 1) + ' rendered successfully');
+                                                }
+                                            });
+                                        }).catch(error => {
+                                            console.error('❌ Error with mermaid.run:', error);
+                                            console.log('🔄 Trying fallback init method...');
+                                            
+                                            // Fallback to init method with individual elements
+                                            try {
+                                                mermaidElements.forEach((el, index) => {
+                                                    try {
+                                                        console.log('🔄 Initializing element ' + (index + 1) + ' individually...');
+                                                        mermaid.init(undefined, el);
+                                                    } catch (elementError) {
+                                                        console.error('❌ Failed to render element ' + (index + 1) + ':', elementError);
+                                                        el.innerHTML = '<div style="color: red; border: 1px solid red; padding: 10px; margin: 10px 0; border-radius: 4px; font-family: monospace;">❌ Mermaid Error: ' + (elementError.message || 'Unknown error') + '<br><br>Original content:<br><pre style="margin: 5px 0; padding: 5px; background: rgba(255,255,255,0.1);">' + (el.textContent || '').substring(0, 200) + '</pre></div>';
+                                                    }
+                                                });
+                                                console.log('✅ Fallback init method completed');
+                                            } catch (initError) {
+                                                console.error('❌ Fallback init method also failed:', initError);
+                                                // Show detailed error message in diagrams
+                                                mermaidElements.forEach((el, index) => {
+                                                    if (el.innerHTML.trim() === el.textContent?.trim()) {
+                                                        el.innerHTML = '<div style="color: red; border: 1px solid red; padding: 10px; margin: 10px 0; border-radius: 4px; font-family: monospace;">❌ Mermaid Rendering Failed<br><br>Error: ' + (error.message || 'Unknown error') + '<br><br>Original content:<br><pre style="margin: 5px 0; padding: 5px; background: rgba(255,255,255,0.1);">' + (el.textContent || '').substring(0, 200) + '</pre></div>';
+                                                    }
+                                                });
+                                            }
+                                        });
+                                    } catch (error) {
+                                        console.error('❌ Error starting Mermaid rendering:', error);
+                                        // Show error in all mermaid elements
+                                        mermaidElements.forEach((el, index) => {
+                                            if (el.innerHTML.trim() === el.textContent?.trim()) {
+                                                el.innerHTML = '<div style="color: red; border: 1px solid red; padding: 10px; margin: 10px 0; border-radius: 4px; font-family: monospace;">❌ Mermaid Initialization Error<br><br>Error: ' + (error.message || 'Unknown error') + '<br><br>Original content:<br><pre style="margin: 5px 0; padding: 5px; background: rgba(255,255,255,0.1);">' + (el.textContent || '').substring(0, 200) + '</pre></div>';
+                                            }
+                                        });
+                                    }
+                                } else {
+                                    console.error('❌ Mermaid library not available');
+                                    // Show message that Mermaid is not available
+                                    document.querySelectorAll('.mermaid').forEach(el => {
+                                        el.innerHTML = '<div style="color: orange; border: 1px solid orange; padding: 10px; margin: 10px 0; border-radius: 4px; font-family: monospace;">⚠️ Mermaid Library Not Available<br><br>The Mermaid library failed to load. Please check your internet connection and try again.</div>';
+                                    });
+                                }
+                            }, 300); // Increased timeout for better DOM settling
+                        } else {
+                            console.log('ℹ️ No Mermaid diagrams found in content');
                         }
-                    } else if (mermaidCount > 0) {
-                        console.error('Mermaid library not available');
+                    } catch (error) {
+                        console.error('Error in processMermaidDiagrams:', error);
                     }
                 }
 
@@ -1893,8 +2217,19 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
         initializeDiagramGenerator();
                     
+        // Show analysis status on load since we auto-analyze on startup
+        // This will be hidden once the analysis completes
+        console.log("🎯 [FRONTEND] Initializing auto-analysis status...");
+        console.log("🕐 [FRONTEND] Frontend initialization time:", new Date().toISOString());
+        console.log("� [FRONTENDn] Current project structure available:", !!currentProjectStructure);
+        
         if (!currentProjectStructure) {
+            console.log("🔄 [FRONTEND] No project structure found - showing analysis status");
+            console.log("⏳ [FRONTEND] Waiting for backend auto-analysis to complete...");
             showAnalysisStatus();
+        } else {
+            console.log("✅ [FRONTEND] Project structure already available - hiding analysis status");
+            hideAnalysisStatus();
         }
                     
         // Test mermaid rendering
@@ -1916,7 +2251,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                             hideDocumentationLoading();
                             break;
                         case 'showClassDocumentation':
-                            showClassDocumentation(message.content);
+                            showClassDocumentation(message.text || message.content);
                             if (message.markdown) {
                                 document.getElementById('class-documentation-content').dataset.markdown = message.markdown;
                             }
@@ -1950,9 +2285,11 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                             showBotResponse(message.text);
                             break;
                         case 'analysisStarted':
+                            console.log('📨 [FRONTEND] Received analysisStarted message from backend');
                             showAnalysisStatus();
                             break;
                         case 'analysisCompleted':
+                            console.log('📨 [FRONTEND] Received analysisCompleted message from backend');
                             hideAnalysisStatus();
                             break;
                         case 'refreshing':
@@ -2119,9 +2456,10 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 // }
 
                 function showGeneratedDiagram(diagramData) {
-                    console.log('showGeneratedDiagram called with:', diagramData);
-                    console.log('Raw content:', diagramData.rawContent);
-                    console.log('Content:', diagramData.content);
+                    console.log('🎨 showGeneratedDiagram called in webview with:', diagramData);
+                    console.log('📄 Raw content:', diagramData.rawContent);
+                    console.log('📊 Content length:', diagramData.content ? diagramData.content.length : 0);
+                    console.log('📝 Text length:', diagramData.text ? diagramData.text.length : 0);
 
                     const resultDiv = document.getElementById('diagramResult');
                     const contentDiv = document.getElementById('diagramContent');
@@ -2129,30 +2467,29 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     const statsElement = document.getElementById('diagramStats');
                     const loadingDiv = document.getElementById('diagramLoading');
 
+                    if (!contentDiv) {
+                        console.error('❌ Could not find diagramContent element!');
+                        return;
+                    }
+
                     // Hide loading
                     loadingDiv.style.display = 'none';
 
                     // Store diagram data
-                    console.log('Setting currentDiagramData:', diagramData);
+                    console.log('💾 Setting currentDiagramData:', diagramData);
                     currentDiagramData = diagramData;
 
                     // Update title
                     titleElement.textContent = diagramData.title || 'Generated Diagram';
 
-                    // Only call marked() if content is Markdown, not HTML
-                    let htmlContent;
-                    const isHtml = diagramData.content && (
-                        diagramData.content.startsWith('<') ||
-                        diagramData.content.includes('<h1') ||
-                        diagramData.content.includes('<div')
-                    );
-                    if (isHtml) {
-                        htmlContent = diagramData.content;
-                    } else {
-                        htmlContent = window.marked(diagramData.content);
-                    }
+                    // Use the converted HTML from backend (like class documentation)
+                    const htmlContent = diagramData.text || diagramData.content || '<p>No diagram content available</p>';
+                    console.log('✅ Setting diagram HTML content (backend converted)');
+                    console.log('📊 HTML content preview:', htmlContent.substring(0, 300));
+                    
                     contentDiv.innerHTML = htmlContent;
 
+                    console.log('🎨 Processing Mermaid diagrams in generated content...');
                     setTimeout(() => {
                         processMermaidDiagrams(contentDiv);
                     }, 200);
@@ -2265,19 +2602,90 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     resultDiv.scrollIntoView({ behavior: 'smooth' });
                 }
                 function updateProjectStructureForDiagrams(structure) {
+                    console.log('📊 [FRONTEND] updateProjectStructureForDiagrams() called');
+                    console.log('🕐 [FRONTEND] Project structure updated at:', new Date().toISOString());
+                    console.log('📈 [FRONTEND] Structure contains:', {
+                        classes: structure?.classes?.length || 0,
+                        packages: structure?.packages?.length || 0,
+                        dependencies: structure?.dependencies?.length || 0
+                    });
+                    
                     currentProjectStructure = structure;
+                    console.log('✅ [FRONTEND] Project structure stored in currentProjectStructure');
+                    
+                    // Log some sample data for debugging
+                    if (structure?.classes?.length > 0) {
+                        console.log('📝 [FRONTEND] Sample classes:', structure.classes.slice(0, 3).map(c => c.name));
+                    }
+                    
                 //    populateModuleSelector();
                 }
 
                 function showAnalysisStatus() {
-                    document.getElementById('projectAnalysisStatus').style.display = 'block';
-                    document.getElementById('generateDiagramBtn').disabled = true;
+                    console.log("🔄 [FRONTEND] showAnalysisStatus() called");
+                    console.log("🕐 [FRONTEND] Analysis status shown at:", new Date().toISOString());
+                    
+                    const statusElement = document.getElementById('projectAnalysisStatus');
+                    const generateBtn = document.getElementById('generateDiagramBtn');
+                    
+                    if (statusElement) {
+                        statusElement.style.display = 'block';
+                        console.log("✅ [FRONTEND] Analysis status element made visible");
+                    } else {
+                        console.error("❌ [FRONTEND] Could not find projectAnalysisStatus element!");
+                    }
+                    
+                    if (generateBtn) {
+                        generateBtn.disabled = true;
+                        console.log("🚫 [FRONTEND] Generate diagram button disabled");
+                    } else {
+                        console.error("❌ [FRONTEND] Could not find generateDiagramBtn element!");
+                    }
                 }
 
                 function hideAnalysisStatus() {
-                    console.log('calling hideAnalysisStatus method')
-                    document.getElementById('projectAnalysisStatus').style.display = 'none';
-                    document.getElementById('generateDiagramBtn').disabled = false;
+                    console.log('🎉 [FRONTEND] hideAnalysisStatus() called - Analysis completed!');
+                    console.log('🕐 [FRONTEND] Analysis completed at:', new Date().toISOString());
+                    console.log('✅ [FRONTEND] Enabling diagram generation...');
+                    
+                    const statusDiv = document.getElementById('projectAnalysisStatus');
+                    const generateBtn = document.getElementById('generateDiagramBtn');
+                    
+                    if (statusDiv) {
+                        statusDiv.style.display = 'none';
+                        console.log('✅ [FRONTEND] Analysis status element hidden');
+                    } else {
+                        console.error('❌ [FRONTEND] Could not find projectAnalysisStatus element!');
+                    }
+                    
+                    if (generateBtn) {
+                        generateBtn.disabled = false;
+                        console.log('🎯 [FRONTEND] Generate diagram button enabled');
+                    } else {
+                        console.error('❌ [FRONTEND] Could not find generateDiagramBtn element!');
+                    }
+                    
+                    // Show a brief success message
+                    if (statusDiv) {
+                        console.log('🎊 [FRONTEND] Showing success message...');
+                        statusDiv.innerHTML = '<div style="color: #4CAF50; text-align: center; padding: 10px;">' +
+                            '<span style="font-size: 18px;">✅</span>' +
+                            '<p style="margin: 5px 0;">Project analysis complete!</p>' +
+                            '<small>Ready to generate diagrams</small>' +
+                            '</div>';
+                        statusDiv.style.display = 'block';
+                        
+                        // Hide the success message after 3 seconds
+                        setTimeout(() => {
+                            console.log('⏰ [FRONTEND] Hiding success message after 3 seconds');
+                            statusDiv.style.display = 'none';
+                            // Restore original content for future use
+                            statusDiv.innerHTML = '<div class="spinner"></div>' +
+                                '<p>Analyzing project structure...</p>' +
+                                '<small>Preparing diagrams for your Java project. This may take a moment for large projects.</small>';
+                            console.log('🔄 [FRONTEND] Success message hidden, original content restored');
+                        }, 3000);
+                    }
                 }
                 
             
@@ -2322,5 +2730,5 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
         </body>
         </html>`;
-    }
+  }
 }

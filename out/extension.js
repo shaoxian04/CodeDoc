@@ -44,7 +44,9 @@ const sentry_service_1 = require("./service/sentry_service");
 const cp = __importStar(require("child_process"));
 const fs = __importStar(require("fs"));
 function activate(context) {
-    console.log("CodeDoc extension is now active!");
+    console.log("🚀🚀🚀 CodeDoc extension ACTIVATE function called! 🚀🚀🚀");
+    console.log("🕐 ACTIVATION TIME:", new Date().toISOString());
+    console.log("📂 WORKSPACE FOLDERS:", vscode.workspace.workspaceFolders?.length || 0);
     // Initialize Sentry for error monitoring
     const sentry = sentry_service_1.SentryService.getInstance();
     sentry.initialize(context);
@@ -62,6 +64,86 @@ function activate(context) {
             },
         }));
         console.log("CodeDoc webview provider registered");
+        // Immediate logging to verify extension activation
+        console.log("🔥 [DEBUG] Extension activation completed - setting up auto-analysis...");
+        console.log("🔥 [DEBUG] Current time:", new Date().toISOString());
+        console.log("🔥 [DEBUG] Workspace folders available:", vscode.workspace.workspaceFolders?.length || 0);
+        // Test immediate Java file search
+        vscode.workspace.findFiles("**/*.java", "**/node_modules/**", 5).then((files) => {
+            console.log("🔥 [DEBUG] Immediate Java file check found:", files.length, "files");
+            files.forEach((file, index) => {
+                console.log(`🔥 [DEBUG] Java file ${index + 1}:`, file.fsPath);
+            });
+        }, (error) => {
+            console.log("🔥 [DEBUG] Error in immediate Java file search:", error);
+        });
+        // Auto-analyze project structure on extension startup (immediate)
+        console.log("🔥 [DEBUG] Running auto-analysis immediately...");
+        (async () => {
+            const startTime = Date.now();
+            try {
+                console.log("🚀 [AUTO-ANALYSIS] Starting automatic project analysis on extension startup...");
+                console.log("🕐 [AUTO-ANALYSIS] Start time:", new Date().toISOString());
+                // Check if there are Java files in the workspace
+                const workspaceFolders = vscode.workspace.workspaceFolders;
+                console.log("📂 [AUTO-ANALYSIS] Workspace folders:", workspaceFolders?.length || 0);
+                if (workspaceFolders && workspaceFolders.length > 0) {
+                    // Log workspace details
+                    workspaceFolders.forEach((folder, index) => {
+                        console.log(`📁 [AUTO-ANALYSIS] Workspace ${index + 1}: ${folder.name} (${folder.uri.fsPath})`);
+                    });
+                    console.log("🔍 [AUTO-ANALYSIS] Searching for Java files...");
+                    const searchStartTime = Date.now();
+                    const javaFiles = await vscode.workspace.findFiles("**/*.java", "**/node_modules/**", 10);
+                    const searchDuration = Date.now() - searchStartTime;
+                    console.log(`⏱️ [AUTO-ANALYSIS] File search completed in ${searchDuration}ms`);
+                    console.log(`📄 [AUTO-ANALYSIS] Found ${javaFiles.length} Java files`);
+                    if (javaFiles.length > 0) {
+                        // Log first few Java files found
+                        javaFiles.slice(0, 5).forEach((file, index) => {
+                            console.log(`📝 [AUTO-ANALYSIS] Java file ${index + 1}: ${file.fsPath}`);
+                        });
+                        if (javaFiles.length > 5) {
+                            console.log(`📝 [AUTO-ANALYSIS] ... and ${javaFiles.length - 5} more files`);
+                        }
+                        console.log("🎯 [AUTO-ANALYSIS] Triggering codedoc.visualizeCode command...");
+                        const analysisStartTime = Date.now();
+                        // Trigger the visualization command which will analyze the project
+                        await vscode.commands.executeCommand("codedoc.visualizeCode");
+                        const analysisDuration = Date.now() - analysisStartTime;
+                        const totalDuration = Date.now() - startTime;
+                        console.log(`⏱️ [AUTO-ANALYSIS] Analysis command completed in ${analysisDuration}ms`);
+                        console.log(`✅ [AUTO-ANALYSIS] Automatic project analysis initiated successfully`);
+                        console.log(`🏁 [AUTO-ANALYSIS] Total auto-analysis time: ${totalDuration}ms`);
+                        // Show user notification
+                        vscode.window.showInformationMessage(`CodeDoc: Analyzing ${javaFiles.length} Java files in background...`, { modal: false });
+                    }
+                    else {
+                        console.log("ℹ️ [AUTO-ANALYSIS] No Java files found in workspace, skipping auto-analysis");
+                        console.log("💡 [AUTO-ANALYSIS] Tip: Make sure your Java files are in the workspace and not in node_modules");
+                    }
+                }
+                else {
+                    console.log("ℹ️ [AUTO-ANALYSIS] No workspace folders found, skipping auto-analysis");
+                    console.log("💡 [AUTO-ANALYSIS] Tip: Open a folder containing Java files to enable auto-analysis");
+                }
+            }
+            catch (error) {
+                const totalDuration = Date.now() - startTime;
+                console.error("❌ [AUTO-ANALYSIS] Auto-analysis failed after", totalDuration + "ms");
+                console.error("❌ [AUTO-ANALYSIS] Error details:", error);
+                console.error("❌ [AUTO-ANALYSIS] Stack trace:", error instanceof Error ? error.stack : "No stack trace");
+                console.warn("⚠️ [AUTO-ANALYSIS] Extension will continue normally despite auto-analysis failure");
+                // Show error notification to user
+                vscode.window.showWarningMessage("CodeDoc: Auto-analysis failed, but you can still use the extension manually.", { modal: false });
+            }
+        })(); // Run immediately
+        // Test command to verify extension is working
+        context.subscriptions.push(vscode.commands.registerCommand("codedoc.testExtension", () => {
+            console.log("🧪 [TEST] Extension test command executed!");
+            console.log("🧪 [TEST] Extension is working correctly");
+            vscode.window.showInformationMessage("✅ CodeDoc extension is working! Check console for logs.");
+        }));
         context.subscriptions.push(vscode.commands.registerCommand("codedoc.openChat", () => {
             console.log("codedoc.openChat command executed");
             vscode.commands.executeCommand("workbench.view.extension.codedoc-sidebar");
@@ -644,6 +726,58 @@ function activate(context) {
             console.log("codedoc.testSentry command executed");
             sentry.sendTestError();
             vscode.window.showInformationMessage("Test error sent to Sentry! Check your Sentry dashboard in a few moments.");
+        }));
+        // Test command for markdown conversion
+        context.subscriptions.push(vscode.commands.registerCommand("codedoc.testMarkdown", () => {
+            console.log("codedoc.testMarkdown command executed");
+            mainProvider.testMarkdownConversion();
+        }));
+        // Command to install Puppeteer browser
+        context.subscriptions.push(vscode.commands.registerCommand("codedoc.installBrowser", async () => {
+            console.log("codedoc.installBrowser command executed");
+            const terminal = vscode.window.createTerminal("Install Chrome for CodeDoc");
+            terminal.show();
+            terminal.sendText("npx puppeteer browsers install chrome");
+            vscode.window.showInformationMessage("Installing Chrome browser for diagram export. This may take a few minutes...", "OK");
+        }));
+        // Test command to simulate browser error
+        context.subscriptions.push(vscode.commands.registerCommand("codedoc.testBrowserError", async () => {
+            console.log("codedoc.testBrowserError command executed - simulating browser launch failure");
+            // Test the browser launch and error handling
+            try {
+                const result = await convertMermaidToSvg("classDiagram\nclass TestClass {\n  +testMethod()\n}");
+                vscode.window.showInformationMessage("✅ Browser test successful! Image export should work.");
+            }
+            catch (error) {
+                vscode.window.showErrorMessage(`❌ Browser test failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+            }
+        }));
+        // Test command to manually trigger auto-analysis
+        context.subscriptions.push(vscode.commands.registerCommand("codedoc.testAutoAnalysis", async () => {
+            console.log("🧪 [TEST] Manual auto-analysis test triggered");
+            try {
+                const workspaceFolders = vscode.workspace.workspaceFolders;
+                console.log("🧪 [TEST] Workspace folders:", workspaceFolders?.length || 0);
+                if (workspaceFolders && workspaceFolders.length > 0) {
+                    const javaFiles = await vscode.workspace.findFiles("**/*.java", "**/node_modules/**", 10);
+                    console.log("🧪 [TEST] Found Java files:", javaFiles.length);
+                    if (javaFiles.length > 0) {
+                        console.log("🧪 [TEST] Triggering codedoc.visualizeCode...");
+                        await vscode.commands.executeCommand("codedoc.visualizeCode");
+                        vscode.window.showInformationMessage(`✅ Manual auto-analysis completed! Found ${javaFiles.length} Java files.`);
+                    }
+                    else {
+                        vscode.window.showWarningMessage("⚠️ No Java files found in workspace.");
+                    }
+                }
+                else {
+                    vscode.window.showWarningMessage("⚠️ No workspace folders found.");
+                }
+            }
+            catch (error) {
+                console.error("🧪 [TEST] Manual auto-analysis failed:", error);
+                vscode.window.showErrorMessage(`❌ Manual auto-analysis failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+            }
         }));
         context.subscriptions.push(vscode.commands.registerCommand("codedoc.generateClassDocs", async () => {
             console.log("codedoc.generateClassDocs command executed");
@@ -1239,6 +1373,15 @@ async function convertMermaidToSvg(mermaidCode) {
         let puppeteer;
         try {
             puppeteer = await Promise.resolve().then(() => __importStar(require("puppeteer")));
+            // Check if Chrome is available
+            try {
+                const browserFetcher = puppeteer.createBrowserFetcher();
+                const revisionInfo = await browserFetcher.download(puppeteer.PUPPETEER_REVISIONS.chromium);
+                console.log("Chrome browser available at:", revisionInfo.executablePath);
+            }
+            catch (downloadError) {
+                console.warn("Chrome browser download/check failed:", downloadError);
+            }
         }
         catch (error) {
             console.warn("Puppeteer not available, using placeholder SVG");
@@ -1287,7 +1430,40 @@ async function convertMermaidToSvg(mermaidCode) {
       </html>
     `;
         // Launch browser and convert to SVG
-        const browser = await puppeteer.launch({ headless: "new" });
+        let browser;
+        try {
+            browser = await puppeteer.launch({
+                headless: "new",
+                args: ["--no-sandbox", "--disable-setuid-sandbox"], // Help with permission issues
+            });
+        }
+        catch (launchError) {
+            console.error("Failed to launch Puppeteer browser:", launchError);
+            // Show user-friendly error message
+            vscode.window
+                .showErrorMessage("Failed to export diagram as image. Chrome browser not found. " +
+                "Please run 'npx puppeteer browsers install chrome' in your terminal to fix this issue.", "Open Terminal", "Learn More")
+                .then((selection) => {
+                if (selection === "Open Terminal") {
+                    vscode.commands.executeCommand("workbench.action.terminal.new");
+                }
+                else if (selection === "Learn More") {
+                    vscode.env.openExternal(vscode.Uri.parse("https://pptr.dev/troubleshooting#chrome-headless-doesnt-launch-on-windows"));
+                }
+            });
+            // Return informative error SVG
+            const errorSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600">
+  <rect x="0" y="0" width="800" height="600" fill="#1e1e1e" />
+  <text x="400" y="200" font-family="Arial" font-size="24" fill="white" text-anchor="middle">Export Error</text>
+  <text x="400" y="240" font-family="Arial" font-size="18" fill="#ff6b6b" text-anchor="middle">Chrome Browser Not Found</text>
+  <text x="400" y="280" font-family="Arial" font-size="14" fill="white" text-anchor="middle">To fix this issue, run in terminal:</text>
+  <text x="400" y="320" font-family="Consolas" font-size="16" fill="#4ecdc4" text-anchor="middle">npx puppeteer browsers install chrome</text>
+  <text x="400" y="360" font-family="Arial" font-size="12" fill="#888" text-anchor="middle">This will download the required Chrome browser for image export</text>
+  <text x="400" y="400" font-family="Arial" font-size="12" fill="#888" text-anchor="middle">Error: ${launchError instanceof Error ? launchError.message : "Unknown error"}</text>
+</svg>`;
+            return errorSvg;
+        }
         const page = await browser.newPage();
         // Set content and wait for mermaid to render
         await page.setContent(htmlContent);
