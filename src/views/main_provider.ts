@@ -223,7 +223,19 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             // Hide loading state
             this._view.webview.postMessage({ type: 'hideDocumentationLoading' });
             
-            const isHtml = content && (content.startsWith('<') || content.includes('<h1') || content.includes('<p>'));
+            const isHtml = content && (
+                content.startsWith('<') || 
+                content.includes('<h1') || 
+                content.includes('<h2') || 
+                content.includes('<h3') || 
+                content.includes('<p>') || 
+                content.includes('<div') ||
+                content.includes('<ul') ||
+                content.includes('<ol') ||
+                content.includes('<li') ||
+                content.includes('<strong') ||
+                content.includes('<em')
+            );
             console.log('Content is HTML:', isHtml);
             
             try {
@@ -1603,26 +1615,26 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
         function showClassDocumentation(content) {
             console.log('showClassDocumentation called in webview with content length:', content ? content.length : 0);
-                    if (content) {
-                        console.log('Content preview:', content.substring(0, Math.min(200, content.length)) + (content.length > 200 ? '...' : ''));
-                    }
-                    
-                    document.getElementById('explanation-placeholder').style.display = 'none';
-                    document.getElementById('class-documentation-content').style.display = 'block';
-                    const docTextElement = document.getElementById('class-documentation-text');
-                    
-                    // Content should already be converted to HTML by the backend
-                    console.log('Setting HTML content directly (backend already converted)');
-                    docTextElement.innerHTML = content || '';
-                    
-                    docTextElement.style.display = 'none';
-                    docTextElement.offsetHeight; // Trigger reflow
-                    docTextElement.style.display = 'block';
-                    
-                    setTimeout(() => {
-                        applyMarkdownStyling(docTextElement);
-                        processMermaidDiagrams(docTextElement);
-                    }, 100);
+            if (content) {
+                console.log('Content preview:', content.substring(0, Math.min(200, content.length)) + (content.length > 200 ? '...' : ''));
+            }
+            
+            document.getElementById('explanation-placeholder').style.display = 'none';
+            document.getElementById('class-documentation-content').style.display = 'block';
+            const docTextElement = document.getElementById('class-documentation-text');
+            
+            // Backend should always send HTML, so just set it directly
+            console.log('Setting content as HTML (backend converted)');
+            docTextElement.innerHTML = content || '';
+            
+            docTextElement.style.display = 'none';
+            docTextElement.offsetHeight; // Trigger reflow
+            docTextElement.style.display = 'block';
+            
+            setTimeout(() => {
+                applyMarkdownStyling(docTextElement);
+                processMermaidDiagrams(docTextElement);
+            }, 100);
         }
 
         function showProjectDocumentation(content) {
@@ -1643,10 +1655,9 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         console.log('Setting HTML content directly');
                         docTextElement.innerHTML = content || '';
                     } else {
-                        console.log('Converting markdown to HTML in webview (fallback)');
-                        // Simple markdown to HTML conversion as fallback
-                        const htmlContent = convertMarkdownToHtml(content || '');
-                        docTextElement.innerHTML = htmlContent;
+                        console.log('Content appears to be markdown, setting as-is (backend should have converted)');
+                        // Backend should have converted markdown to HTML, but if not, set as-is
+                        docTextElement.innerHTML = content || '';
                     }
                     
                     docTextElement.style.display = 'none';
@@ -1722,6 +1733,8 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                         console.error('Mermaid library not available');
                     }
                 }
+
+
 
                 function applyMarkdownStyling(element) {
                     element.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(el => {

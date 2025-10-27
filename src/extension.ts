@@ -14,7 +14,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Initialize Sentry for error monitoring
   const sentry = SentryService.getInstance();
   sentry.initialize(context);
-  sentry.addBreadcrumb('Extension activation started', 'lifecycle');
+  sentry.addBreadcrumb("Extension activation started", "lifecycle");
 
   console.log("CodeDoc extension activation started");
 
@@ -24,1341 +24,43 @@ export function activate(context: vscode.ExtensionContext) {
     const mainProvider = new MainViewProvider(context.extensionUri);
     const workflowOrchestrator = new WorkflowOrchestrator();
 
-  console.log("CodeDoc services initialized");
+    console.log("CodeDoc services initialized");
 
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      "codedoc.mainView",
-      mainProvider,
-      {
-        webviewOptions: {
-          retainContextWhenHidden: true,
-        },
-      }
-    )
-  );
-
-  console.log("CodeDoc webview provider registered");
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("codedoc.openChat", () => {
-      console.log("codedoc.openChat command executed");
-      vscode.commands.executeCommand(
-        "workbench.view.extension.codedoc-sidebar"
-      );
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("codedoc.clearChat", () => {
-      console.log("codedoc.clearChat command executed");
-      mainProvider.clearChat();
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("codedoc.generateDocs", async () => {
-      console.log("codedoc.generateDocs command executed");
-      sentry.addBreadcrumb('Generate docs command executed', 'user_action');
-      
-      try {
-        // Check if API key is configured
-        const config = vscode.workspace.getConfiguration("codedoc");
-        const apiKey = config.get<string>("openaiApiKey");
-
-        if (!apiKey) {
-          const result = await vscode.window.showErrorMessage(
-            "OpenAI API key not configured. Please configure it in the settings.",
-            "Configure Now"
-          );
-
-          if (result === "Configure Now") {
-            console.log("Redirecting to configureExtension command");
-            vscode.commands.executeCommand("codedoc.configureExtension");
-          }
-          return;
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        "codedoc.mainView",
+        mainProvider,
+        {
+          webviewOptions: {
+            retainContextWhenHidden: true,
+          },
         }
+      )
+    );
 
-        vscode.window.showInformationMessage("Generating documentation...");
+    console.log("CodeDoc webview provider registered");
 
-        // Parse the workspace to get project structure
-        const structure: ProjectStructure = await javaParser.parseWorkspace();
-
-        // Use the Langchain-based workflow orchestrator with RAG
-        const response = await workflowOrchestrator.generateProjectOverview(
-          structure,
-          "Generate comprehensive project overview documentation"
+    context.subscriptions.push(
+      vscode.commands.registerCommand("codedoc.openChat", () => {
+        console.log("codedoc.openChat command executed");
+        vscode.commands.executeCommand(
+          "workbench.view.extension.codedoc-sidebar"
         );
-        if (response.success && response.data) {
-          mainProvider.showProjectDocumentation(response.data);
-          vscode.window.showInformationMessage(
-            "Documentation generated successfully!"
-          );
-        } else {
-          vscode.window.showErrorMessage(
-            response.error || "Failed to generate documentation"
-          );
-        }
-      } catch (error) {
-        sentry.captureException(error as Error, {
-          context: 'generate_docs_command',
-          timestamp: new Date().toISOString()
-        });
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand("codedoc.clearChat", () => {
+        console.log("codedoc.clearChat command executed");
+        mainProvider.clearChat();
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand("codedoc.generateDocs", async () => {
+        console.log("codedoc.generateDocs command executed");
+        sentry.addBreadcrumb("Generate docs command executed", "user_action");
 
-        if (
-          error instanceof Error &&
-          error.message.includes("Client is not running")
-        ) {
-          vscode.window.showErrorMessage(
-            "Java language server is not ready yet. Please wait a moment and try again."
-          );
-        } else {
-          vscode.window.showErrorMessage(
-            `Error generating documentation: ${error}`
-          );
-        }
-      }
-    })
-  );
-
-  // Command: sync documentation intelligently with workspace markdown
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "codedoc.syncDocs",
-      async (changedFiles?: string[]) => {
-        console.log("codedoc.syncDocs command executed", { changedFiles });
-        try {
-          const structure: ProjectStructure = await javaParser.parseWorkspace();
-
-          // Find all markdown files in workspace (excluding node_modules)
-          const mdFiles = await vscode.workspace.findFiles(
-            "**/*.md",
-            "**/node_modules/**"
-          );
-
-          if (!mdFiles || mdFiles.length === 0) {
-            // No markdowns — generate a README overview from the project structure
-            const resp = await workflowOrchestrator.generateProjectOverview(
-              structure,
-              "Generate concise project overview for README"
-            );
-            const generated =
-              resp.success && resp.data ? (resp.data as string) : "";
-
-            const create = "Create README.md";
-            const preview = "Preview";
-            const choice = await vscode.window.showInformationMessage(
-              "No markdown files found in workspace. Create a README.md with generated overview?",
-              create,
-              preview,
-              "Cancel"
-            );
-            if (choice === preview) {
-              const doc = await vscode.workspace.openTextDocument({
-                content: generated,
-                language: "markdown",
-              });
-              await vscode.window.showTextDocument(doc, { preview: false });
-              return;
-            }
-            if (choice === create) {
-              const wsRoot =
-                vscode.workspace.workspaceFolders &&
-                vscode.workspace.workspaceFolders[0].uri;
-              if (!wsRoot) {
-                vscode.window.showErrorMessage(
-                  "No workspace root found to create README.md"
-                );
-                return;
-              }
-              const newUri = vscode.Uri.joinPath(wsRoot, "README.md");
-              await vscode.workspace.fs.writeFile(
-                newUri,
-                Buffer.from(generated, "utf8")
-              );
-              vscode.window.showInformationMessage(
-                "README.md created with generated overview."
-              );
-              return;
-            }
-            return;
-          }
-
-          // Simple similarity: token overlap
-          function similarity(a: string, b: string) {
-            const wa = new Set(
-              a
-                .toLowerCase()
-                .replace(/[^a-z0-9\s]/g, " ")
-                .split(/\s+/)
-                .filter(Boolean)
-            );
-            const wb = new Set(
-              b
-                .toLowerCase()
-                .replace(/[^a-z0-9\s]/g, " ")
-                .split(/\s+/)
-                .filter(Boolean)
-            );
-            const inter = [...wa].filter((x) => wb.has(x)).length;
-            const union = new Set([...wa, ...wb]).size || 1;
-            return inter / union;
-          }
-
-          const replacements: Array<{ uri: vscode.Uri; backup: string }> = [];
-
-          const path = require("path");
-
-          // If changedFiles is provided, narrow down markdown files to those related to changed files
-          let filesToCheck = mdFiles;
-          if (
-            changedFiles &&
-            Array.isArray(changedFiles) &&
-            changedFiles.length
-          ) {
-            const related: vscode.Uri[] = [];
-            for (const mdUri of mdFiles) {
-              const mdDir = path.dirname(mdUri.fsPath);
-              for (const cf of changedFiles) {
-                try {
-                  const cfNorm = cf.replace(/\\/g, "/");
-                  const cfDir = path.dirname(cfNorm);
-                  if (cfDir.startsWith(mdDir) || mdDir.startsWith(cfDir)) {
-                    related.push(mdUri);
-                    break;
-                  }
-                } catch (e) {
-                  // ignore path parse errors
-                }
-              }
-            }
-            // Always include root README if present
-            const rootReadme = mdFiles.find((u) =>
-              u.fsPath.toLowerCase().endsWith(path.sep + "readme.md")
-            );
-            if (
-              rootReadme &&
-              !related.find((u) => u.fsPath === rootReadme.fsPath)
-            )
-              {related.push(rootReadme);}
-            if (related.length) filesToCheck = related;
-          }
-
-          // Helper: extract significant tokens from markdown to search codebase (identifiers, class names, function names)
-          function extractTokensFromMarkdown(text: string) {
-            // match camelCase, PascalCase, snake_case, dot.paths, and words longer than 2 chars
-            const tokenRe =
-              /([A-Za-z_$][A-Za-z0-9_$]{2,}|[A-Z][a-z]+[A-Z][A-Za-z0-9_]*)/g;
-            const tokens = new Set<string>();
-            let m: RegExpExecArray | null;
-            while ((m = tokenRe.exec(text))) {
-              const t = m[1].trim();
-              if (t && t.length > 2) tokens.add(t);
-            }
-            return [...tokens].slice(0, 200); // limit
-          }
-
-          const workspaceRoot =
-            vscode.workspace.workspaceFolders &&
-            vscode.workspace.workspaceFolders[0].uri.fsPath;
-          // Helper: get last commit timestamp for a file (returns epoch ms) or 0
-          async function lastCommitTimeForFile(
-            filePath: string,
-            cwdPath: string | undefined
-          ) {
-            try {
-              if (!cwdPath) return 0;
-              const out = await execGit(
-                `log -1 --format=%ct -- ${filePath}`,
-                cwdPath
-              ).catch(() => "");
-              if (!out) return 0;
-              const sec = parseInt(out.trim(), 10);
-              if (isNaN(sec)) return 0;
-              return sec * 1000;
-            } catch (e) {
-              return 0;
-            }
-          }
-
-          // If changedFiles were provided, pre-scan them for annotations so we can detect custom mapping changes
-          const changedFileAnnotations = new Set<string>();
-          if (
-            changedFiles &&
-            Array.isArray(changedFiles) &&
-            changedFiles.length &&
-            workspaceRoot
-          ) {
-            for (const cf of changedFiles) {
-              try {
-                const absPath =
-                  cf.startsWith("/") || cf.indexOf("\\:") >= 0
-                    ? cf
-                    : path.join(workspaceRoot, cf);
-                if (fs.existsSync(absPath)) {
-                  const content = await fs.promises.readFile(absPath, "utf8");
-                  const as = (function extractAnnotationsLocal(text: string) {
-                    const s = new Set<string>();
-                    if (!text) return s;
-                    const re = /@([A-Za-z_][A-Za-z0-9_]*)/g;
-                    let mm: RegExpExecArray | null;
-                    while ((mm = re.exec(text))) s.add(mm[1].toLowerCase());
-                    return s;
-                  })(content);
-                  for (const a of as) changedFileAnnotations.add(a);
-                }
-              } catch (e) {
-                // ignore read errors
-              }
-            }
-          }
-
-          // For each markdown file, ask the orchestrator to update the existing file to match the codebase
-          for (const mdUri of filesToCheck) {
-            try {
-              const existing = await vscode.workspace
-                .openTextDocument(mdUri)
-                .then((d) => d.getText());
-              // Determine related code files by extracting tokens from the markdown and searching the codebase
-              const relPath = vscode.workspace.asRelativePath(mdUri);
-              const tokens = extractTokensFromMarkdown(existing);
-              const codeGlobs = ["**/*.{java,js,ts,jsx,tsx,py,go,cs,cpp,c,kt}"];
-              const candidateUris: vscode.Uri[] = [];
-              for (const g of codeGlobs) {
-                const found = await vscode.workspace.findFiles(
-                  g,
-                  "**/node_modules/**",
-                  200
-                );
-                for (const u of found) candidateUris.push(u);
-              }
-
-              // Score files by token occurrences
-              const scores: Array<{
-                uri: vscode.Uri;
-                score: number;
-                snippet: string;
-              }> = [];
-              for (const u of candidateUris) {
-                try {
-                  const text = await vscode.workspace
-                    .openTextDocument(u)
-                    .then((d) => d.getText());
-                  let s = 0;
-                  for (const tk of tokens) {
-                    if (text.indexOf(tk) >= 0) s += 1;
-                  }
-                  if (s > 0) {
-                    const snippet = text.slice(0, 2000);
-                    scores.push({ uri: u, score: s, snippet });
-                  }
-                } catch (e) {
-                  // ignore
-                }
-              }
-
-              scores.sort((a, b) => b.score - a.score);
-              const topFiles = scores.slice(0, 10);
-              const referenced = topFiles.map((f) => f.uri.fsPath);
-
-              // Compute last commit times
-              const mdCommit = await lastCommitTimeForFile(
-                mdUri.fsPath,
-                workspaceRoot
-              );
-              let latestCodeCommit = 0;
-              for (const ref of referenced) {
-                const t = await lastCommitTimeForFile(ref, workspaceRoot);
-                if (t > latestCodeCommit) latestCodeCommit = t;
-              }
-
-              // If no referenced files were found, as a fallback check whole repo latest commit
-              if (referenced.length === 0) {
-                const repoLatest = await execGit(
-                  "log -1 --format=%ct",
-                  workspaceRoot
-                ).catch(() => "");
-                if (repoLatest) {
-                  const sec = parseInt(repoLatest.trim(), 10);
-                  if (!isNaN(sec))
-                    {latestCodeCommit = Math.max(latestCodeCommit, sec * 1000);}
-                }
-              }
-
-              // Heuristic: detect if markdown contains tokens that lack descriptions
-              function markdownLacksDescription(
-                markdownText: string,
-                tokens: string[]
-              ) {
-                // Split into paragraphs
-                const paragraphs = markdownText
-                  .split(/\n\s*\n/)
-                  .map((p) => p.trim())
-                  .filter(Boolean);
-                for (const tk of tokens.slice(0, 20)) {
-                  const occurrences = paragraphs.filter(
-                    (p) => p.indexOf(tk) >= 0
-                  );
-                  if (occurrences.length === 0) continue;
-                  // If any occurrence paragraph is extremely short (likely just a code mention), treat as lacking description
-                  for (const p of occurrences) {
-                    const plain = p.replace(/[`\-*>#]/g, "").trim();
-                    if (plain.length < 40) {
-                      return true;
-                    }
-                  }
-                }
-                return false;
-              }
-
-              const lacksDesc = markdownLacksDescription(existing, tokens);
-
-              // New heuristic: detect annotation mismatches generically (any @annotation)
-              function extractAnnotations(text: string) {
-                const s = new Set<string>();
-                if (!text) return s;
-                // match @identifier or @identifier(...) and normalize to lower-case simple name
-                const re = /@([A-Za-z_][A-Za-z0-9_]*)/g;
-                let mm: RegExpExecArray | null;
-                while ((mm = re.exec(text))) {
-                  s.add(mm[1].toLowerCase());
-                }
-                return s;
-              }
-
-              const mdAnnotations = extractAnnotations(existing);
-              const codeAnnotations = new Set<string>();
-              for (const f of topFiles) {
-                try {
-                  const as = extractAnnotations(f.snippet);
-                  for (const a of as) codeAnnotations.add(a);
-                } catch (e) {
-                  /* ignore */
-                }
-              }
-
-              // Also consider annotations found in the changed files directly (if provided) as authoritative code-side annotations
-              for (const a of changedFileAnnotations) codeAnnotations.add(a);
-
-              let annotationMismatch = false;
-              if (codeAnnotations.size > 0) {
-                // If markdown lacks any annotation that code shows, or shows different ones, flag it
-                for (const ca of codeAnnotations) {
-                  if (!mdAnnotations.has(ca)) {
-                    annotationMismatch = true;
-                    break;
-                  }
-                }
-              }
-
-              if (annotationMismatch) {
-                console.debug(
-                  "[codedoc.syncDocs] annotation mismatch detected for",
-                  relPath,
-                  "code=",
-                  [...codeAnnotations],
-                  "md=",
-                  [...mdAnnotations]
-                );
-              }
-
-              // Additional heuristic: detect method signature / parameter mismatches
-              function extractMethodSignaturesFromCode(text: string) {
-                const sigs = new Set<string>();
-                if (!text) return sigs;
-                // Very small heuristic regexes for common languages (Java/TS/JS/Python)
-                const javaLike =
-                  /(?:public|private|protected|static|final|synchronized|async|export)\s+[\w<>,\s\[\]]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^\)]*)\)/g;
-                let m: RegExpExecArray | null;
-                while ((m = javaLike.exec(text))) {
-                  const name = m[1];
-                  const params = m[2].replace(/\s+/g, " ").trim();
-                  sigs.add(`${name}(${params})`);
-                }
-                // JS/TS arrow functions and function declarations
-                const fnRe =
-                  /function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^\)]*)\)/g;
-                while ((m = fnRe.exec(text))) {
-                  const name = m[1];
-                  const params = m[2].replace(/\s+/g, " ").trim();
-                  sigs.add(`${name}(${params})`);
-                }
-                const arrowRe =
-                  /([A-Za-z_][A-Za-z0-9_]*)\s*=\s*\(([^\)]*)\)\s*=>/g;
-                while ((m = arrowRe.exec(text))) {
-                  const name = m[1];
-                  const params = m[2].replace(/\s+/g, " ").trim();
-                  sigs.add(`${name}(${params})`);
-                }
-                return sigs;
-              }
-
-              function extractMentionedParamsFromMarkdown(md: string) {
-                const params = new Set<string>();
-                if (!md) return params;
-                // find patterns like methodName(param1, param2) or param: description
-                const callRe = /([A-Za-z_][A-Za-z0-9_]*)\s*\(([^\)]*)\)/g;
-                let mm: RegExpExecArray | null;
-                while ((mm = callRe.exec(md))) {
-                  const name = mm[1];
-                  const ps = mm[2]
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean);
-                  params.add(`${name}(${ps.join(", ")})`);
-                }
-                // parameter list bullets: '- paramName: description'
-                const paramLineRe = /^[\-\*]\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/gm;
-                while ((mm = paramLineRe.exec(md))) {
-                  const p = mm[1];
-                  params.add(p);
-                }
-                return params;
-              }
-
-              const codeSigs = new Set<string>();
-              for (const f of topFiles) {
-                try {
-                  const s = extractMethodSignaturesFromCode(f.snippet);
-                  for (const ss of s) codeSigs.add(ss);
-                } catch (e) {
-                  /* ignore */
-                }
-              }
-
-              const mdParams = extractMentionedParamsFromMarkdown(existing);
-
-              // If code contains a signature that is not mentioned in the markdown (or markdown mentions a different signature), flag mismatch
-              let signatureMismatch = false;
-              if (codeSigs.size > 0) {
-                // If markdown mentions no signatures at all, and code has signatures, we may still want to update if descriptions are short
-                if (mdParams.size === 0 && lacksDesc) signatureMismatch = true;
-                else {
-                  // If any code signature name appears with different parameter list in markdown, flag
-                  for (const cs of codeSigs) {
-                    // extract method name
-                    const name = cs.split("(")[0];
-                    const mdMatching = [...mdParams].find(
-                      (d) => d.startsWith(name + "(") || d === name
-                    );
-                    if (!mdMatching) {
-                      signatureMismatch = true;
-                      break;
-                    }
-                    // If both present but different param str, and not substring match, flag
-                    if (mdMatching && mdMatching !== cs) {
-                      signatureMismatch = true;
-                      break;
-                    }
-                  }
-                }
-              }
-
-              if (signatureMismatch) {
-                console.debug(
-                  "[codedoc.syncDocs] signature mismatch detected for",
-                  relPath,
-                  "codeSigs=",
-                  [...codeSigs],
-                  "mdParams=",
-                  [...mdParams]
-                );
-              }
-              ``;
-              // If code is not newer than markdown, AND markdown seems to have adequate descriptions, AND no annotation/signature mismatch detected, skip
-              if (
-                latestCodeCommit <= mdCommit &&
-                !lacksDesc &&
-                !annotationMismatch &&
-                !signatureMismatch
-              ) {
-                console.debug(
-                  "[codedoc.syncDocs] skipping",
-                  relPath,
-                  "no newer code referenced and descriptions present"
-                );
-                continue;
-              }
-
-              // Truncate existing content in prompt if extremely large
-              const existingSnippet =
-                existing.length > 3000
-                  ? existing.slice(0, 3000) + "\n\n...[truncated]"
-                  : existing;
-              const prompt = `You are given an existing markdown file (path: ${relPath}) and the current project structure context.\n\nExisting file content:\n---\n${existingSnippet}\n---\n\nReferenced code files (only include content when necessary):\n${referenced.join(
-                "\n"
-              )}\n\nPlease update this markdown so that it correctly documents the current codebase based on the referenced code. Only change sections that are inconsistent with the code; preserve formatting and headings where possible. Return the full, updated markdown content only.`;
-              // Build related file snippets to pass to the orchestrator
-              const relatedFilesForAgent = topFiles.map((f) => ({
-                path: vscode.workspace.asRelativePath(f.uri),
-                snippet: f.snippet,
-              }));
-              // Enhanced progress tracking for stale documentation update
-              const respForFile = await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: `🔄 Updating stale documentation`,
-                cancellable: false
-              }, async (progress) => {
-                progress.report({ 
-                  message: `Analyzing ${relPath}...`,
-                  increment: 20 
-                });
-                
-                // Add more context to the update process
-                const enhancedRelatedFiles = topFiles.map((f) => ({
-                  path: vscode.workspace.asRelativePath(f.uri),
-                  snippet: f.snippet,
-                  // Add file metadata for better context
-                  lastModified: f.uri.fsPath,
-                  relevanceScore: f.score || 0
-                }));
-
-                progress.report({ 
-                  message: `Generating enhanced documentation...`,
-                  increment: 40 
-                });
-
-                const result = await workflowOrchestrator.updateMarkdownFile(
-                  structure,
-                  existing,
-                  enhancedRelatedFiles,
-                  relPath
-                );
-
-                progress.report({ 
-                  message: `Finalizing documentation...`,
-                  increment: 30 
-                });
-
-                return result;
-              });
-
-              if (!respForFile.success || !respForFile.data) {
-                console.warn(
-                  "[codedoc.syncDocs] ❌ Failed to update suggestion for",
-                  relPath,
-                  respForFile.error
-                );
-                vscode.window.showErrorMessage(
-                  `❌ Failed to update documentation for ${relPath}`,
-                  { detail: respForFile.error }
-                );
-                continue;
-              }
-
-              // Show success feedback
-              console.log(`[codedoc.syncDocs] ✅ Successfully updated documentation for ${relPath}`);
-              vscode.window.showInformationMessage(
-                `✅ Enhanced documentation updated for ${relPath}`,
-                { modal: false }
-              );
-              const suggested = respForFile.data as string;
-
-              const sim = similarity(existing, suggested);
-              console.debug(
-                "[codedoc.syncDocs] file",
-                relPath,
-                "similarity",
-                sim
-              );
-
-              // Threshold: if similarity < 0.75, propose update
-              // Also: always propose update if we detected annotation or signature mismatches
-              if (sim < 0.75 || annotationMismatch || signatureMismatch) {
-                const replace = `Replace ${relPath}`;
-                const preview = `Preview ${relPath}`;
-                const ignore = "Ignore";
-                const choice = await vscode.window.showInformationMessage(
-                  `${relPath} appears outdated relative to the code. Update this markdown?`,
-                  replace,
-                  preview,
-                  ignore
-                );
-                if (choice === preview) {
-                  const doc = await vscode.workspace.openTextDocument({
-                    content: suggested,
-                    language: "markdown",
-                  });
-                  await vscode.window.showTextDocument(doc, { preview: false });
-                  // prompt again for replace
-                  const confirm = await vscode.window.showInformationMessage(
-                    `Replace ${relPath} with suggested content?`,
-                    `Replace ${relPath}`,
-                    "Cancel"
-                  );
-                  if (confirm !== `Replace ${relPath}`) continue;
-                }
-                if (choice === replace || (choice === undefined && false)) {
-                  try {
-                    // Backup existing
-                    const backupPath = mdUri.fsPath + `.bak.${Date.now()}`;
-                    const backupUri = vscode.Uri.file(backupPath);
-                    await vscode.workspace.fs.writeFile(
-                      backupUri,
-                      Buffer.from(existing, "utf8")
-                    );
-                    // Write new content
-                    await vscode.workspace.fs.writeFile(
-                      mdUri,
-                      Buffer.from(suggested, "utf8")
-                    );
-                    replacements.push({ uri: mdUri, backup: backupPath });
-                    vscode.window.showInformationMessage(
-                      `${relPath} replaced and backup created.`
-                    );
-                  } catch (e) {
-                    console.error("Error replacing markdown", mdUri.fsPath, e);
-                    vscode.window.showErrorMessage(
-                      `Failed to replace ${relPath}. See console for details.`
-                    );
-                  }
-                }
-              }
-            } catch (e) {
-              console.error("Error checking markdown file", mdUri.fsPath, e);
-            }
-          }
-
-          if (replacements.length) {
-            vscode.window.showInformationMessage(
-              `Updated ${replacements.length} markdown file(s). Backups created.`
-            );
-          } else {
-            vscode.window.showInformationMessage(
-              "No markdown files needed updating."
-            );
-          }
-        } catch (error) {
-          console.error("Error in syncDocs", error);
-          vscode.window.showErrorMessage(`Error syncing docs: ${error}`);
-        }
-      }
-    )
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("codedoc.visualizeCode", async () => {
-      console.log("codedoc.visualizeCode command executed");
-      try {
-        // Check if API key is configured
-        const config = vscode.workspace.getConfiguration("codedoc");
-        const apiKey = config.get<string>("openaiApiKey");
-
-        if (!apiKey) {
-          const result = await vscode.window.showErrorMessage(
-            "OpenAI API key not configured. Please configure it in the settings.",
-            "Configure Now"
-          );
-
-          if (result === "Configure Now") {
-            console.log("Redirecting to configureExtension command");
-            vscode.commands.executeCommand("codedoc.configureExtension");
-          }
-          return;
-        }
-
-        vscode.window.showInformationMessage("Analyzing code structure...");
-
-        // Parse the workspace to get project structure
-        const structure: ProjectStructure = await javaParser.parseWorkspace();
-
-        // Use the Langchain-based workflow orchestrator with RAG
-        const response = await workflowOrchestrator.generateVisualization(
-          structure,
-          "Generate architecture diagram and visualization"
-        );
-        if (response.success && response.data) {
-          // Update visualization with enhanced data
-          mainProvider.updateVisualization(structure);
-
-          // Also show the AI-generated architecture description if available
-          if (response.textDescription) {
-            mainProvider.showArchitectureDescription(response.textDescription);
-          }
-
-          await vscode.commands.executeCommand("codedoc.mainView.focus");
-          vscode.window.showInformationMessage(
-            "Code visualization updated with AI insights!"
-          );
-        } else {
-          vscode.window.showErrorMessage(
-            response.error || "Failed to generate visualization"
-          );
-        }
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          error.message.includes("Client is not running")
-        ) {
-          vscode.window.showErrorMessage(
-            "Java language server is not ready yet. Please wait a moment and try again."
-          );
-        } else {
-          vscode.window.showErrorMessage(`Error visualizing code: ${error}`);
-        }
-      }
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("codedoc.configureExtension", async () => {
-      console.log("codedoc.configureExtension command executed");
-      const result = await showConfigurationQuickPick();
-      if (result) {
-        vscode.window.showInformationMessage(
-          "Configuration updated successfully!"
-        );
-        openaiService.reinitialize();
-        // Note: We don't need to reinitialize the workflow orchestrator as it uses the config at runtime
-      }
-    })
-  );
-
-  // Test command for Sentry integration
-  context.subscriptions.push(
-    vscode.commands.registerCommand("codedoc.testSentry", () => {
-      console.log("codedoc.testSentry command executed");
-      sentry.sendTestError();
-      vscode.window.showInformationMessage(
-        "Test error sent to Sentry! Check your Sentry dashboard in a few moments."
-      );
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("codedoc.generateClassDocs", async () => {
-      console.log("codedoc.generateClassDocs command executed");
-      try {
-        // Check if API key is configured
-        const config = vscode.workspace.getConfiguration("codedoc");
-        const apiKey = config.get<string>("openaiApiKey");
-
-        if (!apiKey) {
-          const result = await vscode.window.showErrorMessage(
-            "OpenAI API key not configured. Please configure it in the settings.",
-            "Configure Now"
-          );
-
-          if (result === "Configure Now") {
-            console.log("Redirecting to configureExtension command");
-            vscode.commands.executeCommand("codedoc.configureExtension");
-          }
-          return;
-        }
-
-        vscode.window.showInformationMessage(
-          "Generating class documentation..."
-        );
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-          vscode.window.showWarningMessage(
-            "No active editor found. Please open a Java file and select some code."
-          );
-          return;
-        }
-
-        let code = "";
-        let fileName = "";
-        if (editor.selection.isEmpty) {
-          code = editor.document.getText();
-          fileName = editor.document.fileName;
-        } else {
-          code = editor.document.getText(editor.selection);
-          fileName = editor.document.fileName;
-        }
-
-        if (!code.trim()) {
-          vscode.window.showWarningMessage(
-            "No code selected or file is empty."
-          );
-          return;
-        }
-
-        // Parse the workspace to find the relevant class
-        const structure: ProjectStructure = await javaParser.parseWorkspace();
-        const className =
-          fileName.split(/[/\\]/).pop()?.replace(".java", "") || "";
-        const javaClass = structure.classes.find(
-          (cls) => cls.name === className
-        );
-
-        if (!javaClass) {
-          vscode.window.showWarningMessage(
-            `Could not find class ${className} in the project.`
-          );
-          return;
-        }
-
-        // Find related classes (dependencies)
-        const relatedClasses = structure.classes.filter(
-          (cls) =>
-            javaClass.dependencies.includes(cls.name) ||
-            structure.relationships.some(
-              (rel) =>
-                (rel.from === javaClass.name && rel.to === cls.name) ||
-                (rel.to === javaClass.name && rel.from === cls.name)
-            )
-        );
-
-        // Use the Langchain-based workflow orchestrator for class documentation with RAG
-        const response = await workflowOrchestrator.generateClassDocumentation(
-          javaClass,
-          relatedClasses,
-          `Generate documentation for class ${javaClass.name}`
-        );
-        if (response.success && response.data) {
-          mainProvider.showClassDocumentation(response.data);
-          vscode.window.showInformationMessage(
-            "Class documentation generated successfully!"
-          );
-        } else {
-          vscode.window.showErrorMessage(
-            response.error || "Failed to generate class documentation"
-          );
-        }
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          error.message.includes("Client is not running")
-        ) {
-          vscode.window.showErrorMessage(
-            "Java language server is not ready yet. Please wait a moment and try again."
-          );
-        } else {
-          vscode.window.showErrorMessage(
-            `Error generating class documentation: ${error}`
-          );
-        }
-      }
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "codedoc.exportClassDocs",
-      async (content: string) => {
-        console.log("codedoc.exportClassDocs command executed");
-        if (!content) {
-          vscode.window.showWarningMessage(
-            "No documentation content to export."
-          );
-          return;
-        }
-
-        try {
-          // Get the workspace folder to save the documentation
-          const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-          if (!workspaceFolder) {
-            vscode.window.showErrorMessage("No workspace folder found");
-            return;
-          }
-
-          // Create docs directory if it doesn't exist
-          const docsPath = vscode.Uri.joinPath(workspaceFolder.uri, "docs");
-          try {
-            await vscode.workspace.fs.createDirectory(docsPath);
-          } catch (e) {
-            // Directory might already exist
-          }
-
-          // Create a filename with timestamp
-          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-          const fileName = `class-documentation-${timestamp}.md`;
-          const fileUri = vscode.Uri.joinPath(docsPath, fileName);
-
-          // Write the content to the file
-          await vscode.workspace.fs.writeFile(
-            fileUri,
-            Buffer.from(content, "utf8")
-          );
-
-          vscode.window.showInformationMessage(
-            `Class documentation saved to ${fileUri.fsPath}`
-          );
-
-          // Optionally open the file after saving
-          const openFile = await vscode.window.showInformationMessage(
-            "Class documentation exported successfully!",
-            "Open File"
-          );
-          if (openFile === "Open File") {
-            const doc = await vscode.workspace.openTextDocument(fileUri);
-            await vscode.window.showTextDocument(doc);
-          }
-        } catch (error) {
-          vscode.window.showErrorMessage(
-            `Error exporting documentation: ${error}`
-          );
-        }
-      }
-    )
-  );
-
-  // Diagram generation commands
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "codedoc.generateDiagram",
-      async (params: any) => {
-        console.log("codedoc.generateDiagram command executed", params);
-        try {
-          const config = vscode.workspace.getConfiguration("codedoc");
-          const apiKey = config.get<string>("openaiApiKey");
-
-          if (!apiKey) {
-            vscode.window.showErrorMessage(
-              "OpenAI API key not configured. Please configure it in the settings."
-            );
-            return;
-          }
-
-          // Generate diagram using the enhanced visualization agent
-          const response = await workflowOrchestrator.generateDiagram(params);
-
-          if (response.success && response.data) {
-            mainProvider.showGeneratedDiagram(response.data);
-          } else {
-            vscode.window.showErrorMessage(
-              response.error || "Failed to generate diagram"
-            );
-          }
-        } catch (error) {
-          console.error("Error generating diagram:", error);
-          vscode.window.showErrorMessage("Failed to generate diagram");
-        }
-      }
-    )
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "codedoc.exportDiagram",
-      async (diagramData: any) => {
-        console.log("codedoc.exportDiagram command executed");
-        try {
-          const fileName = `${diagramData.type || "diagram"}-${Date.now()}.md`;
-          const uri = await vscode.window.showSaveDialog({
-            defaultUri: vscode.Uri.file(fileName),
-            filters: {
-              "Markdown files": ["md"],
-            },
-          });
-
-          if (uri) {
-            await vscode.workspace.fs.writeFile(
-              uri,
-              Buffer.from(diagramData.rawContent, "utf8")
-            );
-            vscode.window.showInformationMessage(
-              `Diagram exported to ${uri.fsPath}`
-            );
-          }
-        } catch (error) {
-          console.error("Error exporting diagram:", error);
-          vscode.window.showErrorMessage("Failed to export diagram");
-        }
-      }
-    )
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "codedoc.previewDiagram",
-      async (diagramData: any) => {
-        console.log("codedoc.previewDiagram command executed");
-        try {
-          // Check if diagramData has the required content
-          if (!diagramData || !diagramData.rawContent) {
-            vscode.window.showErrorMessage(
-              "No diagram content available to preview"
-            );
-            return;
-          }
-
-          // Create temp file in workspace or system temp directory
-          const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-          const fileName = `temp-diagram-${Date.now()}.md`;
-
-          let tempUri: vscode.Uri;
-          if (workspaceFolder) {
-            tempUri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
-          } else {
-            // Fallback to system temp directory
-            const os = require("os");
-            const path = require("path");
-            tempUri = vscode.Uri.file(path.join(os.tmpdir(), fileName));
-          }
-
-          await vscode.workspace.fs.writeFile(
-            tempUri,
-            Buffer.from(diagramData.rawContent, "utf8")
-          );
-          const document = await vscode.workspace.openTextDocument(tempUri);
-          await vscode.window.showTextDocument(document);
-
-          vscode.window.showInformationMessage(
-            "Diagram opened in editor. You can copy the content or save it."
-          );
-
-          // Clean up temp file after a delay
-          setTimeout(async () => {
-            try {
-              await vscode.workspace.fs.delete(tempUri);
-            } catch (e) {
-              // Ignore cleanup errors
-              console.log("Could not clean up temp file:", e);
-            }
-          }, 60000); // Increased to 60 seconds
-        } catch (error) {
-          console.error("Error previewing diagram:", error);
-          vscode.window.showErrorMessage(
-            `Failed to preview diagram: ${
-              error instanceof Error ? error.message : "Unknown error"
-            }`
-          );
-        }
-      }
-    )
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "codedoc.saveDiagramToDocs",
-      async (diagramData: any) => {
-        console.log("codedoc.saveDiagramToDocs command executed");
-        try {
-          const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-          if (!workspaceFolder) {
-            vscode.window.showErrorMessage("No workspace folder found");
-            return;
-          }
-
-          const docsPath = vscode.Uri.joinPath(
-            workspaceFolder.uri,
-            "docs",
-            "architecture"
-          );
-
-          // Create docs/architecture directory if it doesn't exist
-          try {
-            await vscode.workspace.fs.createDirectory(docsPath);
-          } catch (e) {
-            // Directory might already exist
-          }
-
-          const fileName = `${diagramData.type || "diagram"}-${Date.now()}.md`;
-          const fileUri = vscode.Uri.joinPath(docsPath, fileName);
-
-          await vscode.workspace.fs.writeFile(
-            fileUri,
-            Buffer.from(diagramData.rawContent, "utf8")
-          );
-          vscode.window.showInformationMessage(
-            `Diagram saved to docs/architecture/${fileName}`
-          );
-
-          // Optionally open the file
-          const openFile = await vscode.window.showInformationMessage(
-            "Diagram saved successfully!",
-            "Open File"
-          );
-          if (openFile === "Open File") {
-            await vscode.window.showTextDocument(fileUri);
-          }
-        } catch (error) {
-          console.error("Error saving diagram to docs:", error);
-          vscode.window.showErrorMessage(
-            "Failed to save diagram to docs folder"
-          );
-        }
-      }
-    )
-  );
-
-  // Add image export command
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "codedoc.exportDiagramAsImage",
-      async (diagramData: any) => {
-        console.log("codedoc.exportDiagramAsImage command executed");
-        console.log("Received diagramData for export:", diagramData);
-
-        // Check if we have the required data
-        if (!diagramData) {
-          console.log("No diagramData provided for export");
-          vscode.window.showErrorMessage(
-            "No diagram data available for export"
-          );
-          return;
-        }
-
-        try {
-          // Check if diagramData has the required content
-          if (!diagramData || !diagramData.rawContent) {
-            vscode.window.showErrorMessage(
-              "No diagram content available to export as image"
-            );
-            return;
-          }
-
-          // Extract the mermaid content from the rawContent
-          let mermaidContent = diagramData.rawContent;
-          const mermaidMatch = diagramData.rawContent.match(
-            /```mermaid([\s\S]*?)```/
-          );
-          if (mermaidMatch) {
-            mermaidContent = mermaidMatch[1].trim();
-          }
-
-          // Create SVG from mermaid using mermaid CLI approach
-          const svgContent = await convertMermaidToSvg(mermaidContent);
-
-          if (!svgContent) {
-            vscode.window.showErrorMessage(
-              "Failed to convert diagram to image"
-            );
-            return;
-          }
-
-          const fileName = `${diagramData.type || "diagram"}-${Date.now()}.svg`;
-          const uri = await vscode.window.showSaveDialog({
-            defaultUri: vscode.Uri.file(fileName),
-            filters: {
-              "SVG files": ["svg"],
-              "PNG files": ["png"],
-            },
-          });
-
-          if (uri) {
-            // For PNG conversion, we would need additional processing
-            if (uri.path.endsWith(".png")) {
-              vscode.window.showErrorMessage(
-                "PNG export not yet implemented. Please export as SVG for now."
-              );
-              return;
-            }
-
-            await vscode.workspace.fs.writeFile(
-              uri,
-              Buffer.from(svgContent, "utf8")
-            );
-            vscode.window.showInformationMessage(
-              `Diagram exported as image to ${uri.fsPath}`
-            );
-          }
-        } catch (error) {
-          console.error("Error exporting diagram as image:", error);
-          vscode.window.showErrorMessage(
-            `Failed to export diagram as image: ${
-              error instanceof Error ? error.message : "Unknown error"
-            }`
-          );
-        }
-      }
-    )
-  );
-
-  // Add open as image command
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "codedoc.openDiagramAsImage",
-      async (diagramData: any) => {
-        console.log("codedoc.openDiagramAsImage command executed");
-        console.log("Received diagramData for opening:", diagramData);
-
-        // Check if we have the required data
-        if (!diagramData) {
-          console.log("No diagramData provided for opening");
-          vscode.window.showErrorMessage(
-            "No diagram data available for opening"
-          );
-          return;
-        }
-
-        try {
-          // Check if diagramData has the required content
-          if (!diagramData || !diagramData.rawContent) {
-            vscode.window.showErrorMessage(
-              "No diagram content available to open as image"
-            );
-            return;
-          }
-
-          // Extract the mermaid content from the rawContent
-          let mermaidContent = diagramData.rawContent;
-          const mermaidMatch = diagramData.rawContent.match(
-            /```mermaid([\s\S]*?)```/
-          );
-          if (mermaidMatch) {
-            mermaidContent = mermaidMatch[1].trim();
-          }
-
-          // Create SVG from mermaid
-          const svgContent = await convertMermaidToSvg(mermaidContent);
-
-          if (!svgContent) {
-            vscode.window.showErrorMessage(
-              "Failed to convert diagram to image"
-            );
-            return;
-          }
-
-          // Create temp file
-          const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-          const fileName = `temp-diagram-${Date.now()}.svg`;
-
-          let tempUri: vscode.Uri;
-          if (workspaceFolder) {
-            tempUri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
-          } else {
-            // Fallback to system temp directory
-            const os = require("os");
-            const path = require("path");
-            tempUri = vscode.Uri.file(path.join(os.tmpdir(), fileName));
-          }
-
-          await vscode.workspace.fs.writeFile(
-            tempUri,
-            Buffer.from(svgContent, "utf8")
-          );
-          // Use the preview command to open the SVG as an image instead of text
-          await vscode.commands.executeCommand("vscode.open", tempUri, {
-            preview: true,
-          });
-
-          vscode.window.showInformationMessage(
-            "Diagram opened as SVG image in preview."
-          );
-
-          // Clean up temp file after a delay
-          setTimeout(async () => {
-            try {
-              await vscode.workspace.fs.delete(tempUri);
-            } catch (e) {
-              // Ignore cleanup errors
-              console.log("Could not clean up temp file:", e);
-            }
-          }, 60000); // 60 seconds
-        } catch (error) {
-          console.error("Error opening diagram as image:", error);
-          vscode.window.showErrorMessage(
-            `Failed to open diagram as image: ${
-              error instanceof Error ? error.message : "Unknown error"
-            }`
-          );
-        }
-      }
-    )
-  );
-
-  // Add chat message processing command
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "codedoc.processChatMessage",
-      async (message: string) => {
-        console.log(
-          "codedoc.processChatMessage command executed with message:",
-          message
-        );
         try {
           // Check if API key is configured
           const config = vscode.workspace.getConfiguration("codedoc");
@@ -1377,48 +79,1384 @@ export function activate(context: vscode.ExtensionContext) {
             return;
           }
 
-          // Parse the workspace to get project structure for context
+          vscode.window.showInformationMessage("Generating documentation...");
+
+          // Parse the workspace to get project structure
           const structure: ProjectStructure = await javaParser.parseWorkspace();
-          console.log("Parsed project structure:", structure);
 
-          // Use the Langchain-based workflow orchestrator with RAG for chat
-          const response = await workflowOrchestrator.handleChatRequest(
-            message,
-            { projectStructure: structure }
+          // Use the Langchain-based workflow orchestrator with RAG
+          const response = await workflowOrchestrator.generateProjectOverview(
+            structure,
+            "Generate comprehensive project overview documentation"
           );
-          console.log("Workflow orchestrator response:", response);
-
           if (response.success && response.data) {
-            mainProvider.showChatResponse(response); // Pass the entire response, not just response.data
+            mainProvider.showProjectDocumentation(response.data);
+            vscode.window.showInformationMessage(
+              "Documentation generated successfully!"
+            );
           } else {
-            mainProvider.showChatError(
-              response.error || "Failed to process chat message"
+            vscode.window.showErrorMessage(
+              response.error || "Failed to generate documentation"
             );
           }
         } catch (error) {
-          console.error("Error processing chat message:", error);
-          mainProvider.showChatError(`Error processing chat message: ${error}`);
+          sentry.captureException(error as Error, {
+            context: "generate_docs_command",
+            timestamp: new Date().toISOString(),
+          });
+
+          if (
+            error instanceof Error &&
+            error.message.includes("Client is not running")
+          ) {
+            vscode.window.showErrorMessage(
+              "Java language server is not ready yet. Please wait a moment and try again."
+            );
+          } else {
+            vscode.window.showErrorMessage(
+              `Error generating documentation: ${error}`
+            );
+          }
         }
-      }
-    )
-  );
+      })
+    );
 
-  vscode.commands.executeCommand("setContext", "codedoc.chatViewEnabled", true);
+    // Command: sync documentation intelligently with workspace markdown
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "codedoc.syncDocs",
+        async (changedFiles?: string[]) => {
+          console.log("codedoc.syncDocs command executed", { changedFiles });
+          try {
+            const structure: ProjectStructure =
+              await javaParser.parseWorkspace();
 
-  const watcher = vscode.workspace.createFileSystemWatcher("**/*.java");
-  // watcher.onDidChange(() => {
-  //     // Debounce the parsing to avoid too frequent updates
-  //     setTimeout(async () => {
-  //         try {
-  //             await vscode.commands.executeCommand('codedoc.visualizeCode');
-  //         } catch (error) {
-  //             console.error('Error during auto-parse:', error);
-  //         }
-  //     }, 2000);
-  // });
-  context.subscriptions.push(watcher);
+            // Find all markdown files in workspace (excluding node_modules)
+            const mdFiles = await vscode.workspace.findFiles(
+              "**/*.md",
+              "**/node_modules/**"
+            );
 
-  console.log("CodeDoc extension activation completed");
+            if (!mdFiles || mdFiles.length === 0) {
+              // No markdowns — generate a README overview from the project structure
+              const resp = await workflowOrchestrator.generateProjectOverview(
+                structure,
+                "Generate concise project overview for README"
+              );
+              const generated =
+                resp.success && resp.data ? (resp.data as string) : "";
+
+              const create = "Create README.md";
+              const preview = "Preview";
+              const choice = await vscode.window.showInformationMessage(
+                "No markdown files found in workspace. Create a README.md with generated overview?",
+                create,
+                preview,
+                "Cancel"
+              );
+              if (choice === preview) {
+                const doc = await vscode.workspace.openTextDocument({
+                  content: generated,
+                  language: "markdown",
+                });
+                await vscode.window.showTextDocument(doc, { preview: false });
+                return;
+              }
+              if (choice === create) {
+                const wsRoot =
+                  vscode.workspace.workspaceFolders &&
+                  vscode.workspace.workspaceFolders[0].uri;
+                if (!wsRoot) {
+                  vscode.window.showErrorMessage(
+                    "No workspace root found to create README.md"
+                  );
+                  return;
+                }
+                const newUri = vscode.Uri.joinPath(wsRoot, "README.md");
+                await vscode.workspace.fs.writeFile(
+                  newUri,
+                  Buffer.from(generated, "utf8")
+                );
+                vscode.window.showInformationMessage(
+                  "README.md created with generated overview."
+                );
+                return;
+              }
+              return;
+            }
+
+            // Simple similarity: token overlap
+            function similarity(a: string, b: string) {
+              const wa = new Set(
+                a
+                  .toLowerCase()
+                  .replace(/[^a-z0-9\s]/g, " ")
+                  .split(/\s+/)
+                  .filter(Boolean)
+              );
+              const wb = new Set(
+                b
+                  .toLowerCase()
+                  .replace(/[^a-z0-9\s]/g, " ")
+                  .split(/\s+/)
+                  .filter(Boolean)
+              );
+              const inter = [...wa].filter((x) => wb.has(x)).length;
+              const union = new Set([...wa, ...wb]).size || 1;
+              return inter / union;
+            }
+
+            const replacements: Array<{ uri: vscode.Uri; backup: string }> = [];
+
+            const path = require("path");
+
+            // If changedFiles is provided, narrow down markdown files to those related to changed files
+            let filesToCheck = mdFiles;
+            if (
+              changedFiles &&
+              Array.isArray(changedFiles) &&
+              changedFiles.length
+            ) {
+              const related: vscode.Uri[] = [];
+              for (const mdUri of mdFiles) {
+                const mdDir = path.dirname(mdUri.fsPath);
+                for (const cf of changedFiles) {
+                  try {
+                    const cfNorm = cf.replace(/\\/g, "/");
+                    const cfDir = path.dirname(cfNorm);
+                    if (cfDir.startsWith(mdDir) || mdDir.startsWith(cfDir)) {
+                      related.push(mdUri);
+                      break;
+                    }
+                  } catch (e) {
+                    // ignore path parse errors
+                  }
+                }
+              }
+              // Always include root README if present
+              const rootReadme = mdFiles.find((u) =>
+                u.fsPath.toLowerCase().endsWith(path.sep + "readme.md")
+              );
+              if (
+                rootReadme &&
+                !related.find((u) => u.fsPath === rootReadme.fsPath)
+              ) {
+                related.push(rootReadme);
+              }
+              if (related.length) filesToCheck = related;
+            }
+
+            // Helper: extract significant tokens from markdown to search codebase (identifiers, class names, function names)
+            function extractTokensFromMarkdown(text: string) {
+              // match camelCase, PascalCase, snake_case, dot.paths, and words longer than 2 chars
+              const tokenRe =
+                /([A-Za-z_$][A-Za-z0-9_$]{2,}|[A-Z][a-z]+[A-Z][A-Za-z0-9_]*)/g;
+              const tokens = new Set<string>();
+              let m: RegExpExecArray | null;
+              while ((m = tokenRe.exec(text))) {
+                const t = m[1].trim();
+                if (t && t.length > 2) tokens.add(t);
+              }
+              return [...tokens].slice(0, 200); // limit
+            }
+
+            const workspaceRoot =
+              vscode.workspace.workspaceFolders &&
+              vscode.workspace.workspaceFolders[0].uri.fsPath;
+            // Helper: get last commit timestamp for a file (returns epoch ms) or 0
+            async function lastCommitTimeForFile(
+              filePath: string,
+              cwdPath: string | undefined
+            ) {
+              try {
+                if (!cwdPath) return 0;
+                const out = await execGit(
+                  `log -1 --format=%ct -- ${filePath}`,
+                  cwdPath
+                ).catch(() => "");
+                if (!out) return 0;
+                const sec = parseInt(out.trim(), 10);
+                if (isNaN(sec)) return 0;
+                return sec * 1000;
+              } catch (e) {
+                return 0;
+              }
+            }
+
+            // If changedFiles were provided, pre-scan them for annotations so we can detect custom mapping changes
+            const changedFileAnnotations = new Set<string>();
+            if (
+              changedFiles &&
+              Array.isArray(changedFiles) &&
+              changedFiles.length &&
+              workspaceRoot
+            ) {
+              for (const cf of changedFiles) {
+                try {
+                  const absPath =
+                    cf.startsWith("/") || cf.indexOf("\\:") >= 0
+                      ? cf
+                      : path.join(workspaceRoot, cf);
+                  if (fs.existsSync(absPath)) {
+                    const content = await fs.promises.readFile(absPath, "utf8");
+                    const as = (function extractAnnotationsLocal(text: string) {
+                      const s = new Set<string>();
+                      if (!text) return s;
+                      const re = /@([A-Za-z_][A-Za-z0-9_]*)/g;
+                      let mm: RegExpExecArray | null;
+                      while ((mm = re.exec(text))) s.add(mm[1].toLowerCase());
+                      return s;
+                    })(content);
+                    for (const a of as) changedFileAnnotations.add(a);
+                  }
+                } catch (e) {
+                  // ignore read errors
+                }
+              }
+            }
+
+            // For each markdown file, ask the orchestrator to update the existing file to match the codebase
+            for (const mdUri of filesToCheck) {
+              try {
+                const existing = await vscode.workspace
+                  .openTextDocument(mdUri)
+                  .then((d) => d.getText());
+                // Determine related code files by extracting tokens from the markdown and searching the codebase
+                const relPath = vscode.workspace.asRelativePath(mdUri);
+                const tokens = extractTokensFromMarkdown(existing);
+                const codeGlobs = [
+                  "**/*.{java,js,ts,jsx,tsx,py,go,cs,cpp,c,kt}",
+                ];
+                const candidateUris: vscode.Uri[] = [];
+                for (const g of codeGlobs) {
+                  const found = await vscode.workspace.findFiles(
+                    g,
+                    "**/node_modules/**",
+                    200
+                  );
+                  for (const u of found) candidateUris.push(u);
+                }
+
+                // Score files by token occurrences
+                const scores: Array<{
+                  uri: vscode.Uri;
+                  score: number;
+                  snippet: string;
+                }> = [];
+                for (const u of candidateUris) {
+                  try {
+                    const text = await vscode.workspace
+                      .openTextDocument(u)
+                      .then((d) => d.getText());
+                    let s = 0;
+                    for (const tk of tokens) {
+                      if (text.indexOf(tk) >= 0) s += 1;
+                    }
+                    if (s > 0) {
+                      const snippet = text.slice(0, 2000);
+                      scores.push({ uri: u, score: s, snippet });
+                    }
+                  } catch (e) {
+                    // ignore
+                  }
+                }
+
+                scores.sort((a, b) => b.score - a.score);
+                const topFiles = scores.slice(0, 10);
+                const referenced = topFiles.map((f) => f.uri.fsPath);
+
+                // Compute last commit times
+                const mdCommit = await lastCommitTimeForFile(
+                  mdUri.fsPath,
+                  workspaceRoot
+                );
+                let latestCodeCommit = 0;
+                for (const ref of referenced) {
+                  const t = await lastCommitTimeForFile(ref, workspaceRoot);
+                  if (t > latestCodeCommit) latestCodeCommit = t;
+                }
+
+                // If no referenced files were found, as a fallback check whole repo latest commit
+                if (referenced.length === 0) {
+                  const repoLatest = await execGit(
+                    "log -1 --format=%ct",
+                    workspaceRoot
+                  ).catch(() => "");
+                  if (repoLatest) {
+                    const sec = parseInt(repoLatest.trim(), 10);
+                    if (!isNaN(sec)) {
+                      latestCodeCommit = Math.max(latestCodeCommit, sec * 1000);
+                    }
+                  }
+                }
+
+                // Heuristic: detect if markdown contains tokens that lack descriptions
+                function markdownLacksDescription(
+                  markdownText: string,
+                  tokens: string[]
+                ) {
+                  // Split into paragraphs
+                  const paragraphs = markdownText
+                    .split(/\n\s*\n/)
+                    .map((p) => p.trim())
+                    .filter(Boolean);
+                  for (const tk of tokens.slice(0, 20)) {
+                    const occurrences = paragraphs.filter(
+                      (p) => p.indexOf(tk) >= 0
+                    );
+                    if (occurrences.length === 0) continue;
+                    // If any occurrence paragraph is extremely short (likely just a code mention), treat as lacking description
+                    for (const p of occurrences) {
+                      const plain = p.replace(/[`\-*>#]/g, "").trim();
+                      if (plain.length < 40) {
+                        return true;
+                      }
+                    }
+                  }
+                  return false;
+                }
+
+                const lacksDesc = markdownLacksDescription(existing, tokens);
+
+                // New heuristic: detect annotation mismatches generically (any @annotation)
+                function extractAnnotations(text: string) {
+                  const s = new Set<string>();
+                  if (!text) return s;
+                  // match @identifier or @identifier(...) and normalize to lower-case simple name
+                  const re = /@([A-Za-z_][A-Za-z0-9_]*)/g;
+                  let mm: RegExpExecArray | null;
+                  while ((mm = re.exec(text))) {
+                    s.add(mm[1].toLowerCase());
+                  }
+                  return s;
+                }
+
+                const mdAnnotations = extractAnnotations(existing);
+                const codeAnnotations = new Set<string>();
+                for (const f of topFiles) {
+                  try {
+                    const as = extractAnnotations(f.snippet);
+                    for (const a of as) codeAnnotations.add(a);
+                  } catch (e) {
+                    /* ignore */
+                  }
+                }
+
+                // Also consider annotations found in the changed files directly (if provided) as authoritative code-side annotations
+                for (const a of changedFileAnnotations) codeAnnotations.add(a);
+
+                let annotationMismatch = false;
+                if (codeAnnotations.size > 0) {
+                  // If markdown lacks any annotation that code shows, or shows different ones, flag it
+                  for (const ca of codeAnnotations) {
+                    if (!mdAnnotations.has(ca)) {
+                      annotationMismatch = true;
+                      break;
+                    }
+                  }
+                }
+
+                if (annotationMismatch) {
+                  console.debug(
+                    "[codedoc.syncDocs] annotation mismatch detected for",
+                    relPath,
+                    "code=",
+                    [...codeAnnotations],
+                    "md=",
+                    [...mdAnnotations]
+                  );
+                }
+
+                // Additional heuristic: detect method signature / parameter mismatches
+                function extractMethodSignaturesFromCode(text: string) {
+                  const sigs = new Set<string>();
+                  if (!text) return sigs;
+                  // Very small heuristic regexes for common languages (Java/TS/JS/Python)
+                  const javaLike =
+                    /(?:public|private|protected|static|final|synchronized|async|export)\s+[\w<>,\s\[\]]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^\)]*)\)/g;
+                  let m: RegExpExecArray | null;
+                  while ((m = javaLike.exec(text))) {
+                    const name = m[1];
+                    const params = m[2].replace(/\s+/g, " ").trim();
+                    sigs.add(`${name}(${params})`);
+                  }
+                  // JS/TS arrow functions and function declarations
+                  const fnRe =
+                    /function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^\)]*)\)/g;
+                  while ((m = fnRe.exec(text))) {
+                    const name = m[1];
+                    const params = m[2].replace(/\s+/g, " ").trim();
+                    sigs.add(`${name}(${params})`);
+                  }
+                  const arrowRe =
+                    /([A-Za-z_][A-Za-z0-9_]*)\s*=\s*\(([^\)]*)\)\s*=>/g;
+                  while ((m = arrowRe.exec(text))) {
+                    const name = m[1];
+                    const params = m[2].replace(/\s+/g, " ").trim();
+                    sigs.add(`${name}(${params})`);
+                  }
+                  return sigs;
+                }
+
+                function extractMentionedParamsFromMarkdown(md: string) {
+                  const params = new Set<string>();
+                  if (!md) return params;
+                  // find patterns like methodName(param1, param2) or param: description
+                  const callRe = /([A-Za-z_][A-Za-z0-9_]*)\s*\(([^\)]*)\)/g;
+                  let mm: RegExpExecArray | null;
+                  while ((mm = callRe.exec(md))) {
+                    const name = mm[1];
+                    const ps = mm[2]
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    params.add(`${name}(${ps.join(", ")})`);
+                  }
+                  // parameter list bullets: '- paramName: description'
+                  const paramLineRe =
+                    /^[\-\*]\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/gm;
+                  while ((mm = paramLineRe.exec(md))) {
+                    const p = mm[1];
+                    params.add(p);
+                  }
+                  return params;
+                }
+
+                const codeSigs = new Set<string>();
+                for (const f of topFiles) {
+                  try {
+                    const s = extractMethodSignaturesFromCode(f.snippet);
+                    for (const ss of s) codeSigs.add(ss);
+                  } catch (e) {
+                    /* ignore */
+                  }
+                }
+
+                const mdParams = extractMentionedParamsFromMarkdown(existing);
+
+                // If code contains a signature that is not mentioned in the markdown (or markdown mentions a different signature), flag mismatch
+                let signatureMismatch = false;
+                if (codeSigs.size > 0) {
+                  // If markdown mentions no signatures at all, and code has signatures, we may still want to update if descriptions are short
+                  if (mdParams.size === 0 && lacksDesc)
+                    signatureMismatch = true;
+                  else {
+                    // If any code signature name appears with different parameter list in markdown, flag
+                    for (const cs of codeSigs) {
+                      // extract method name
+                      const name = cs.split("(")[0];
+                      const mdMatching = [...mdParams].find(
+                        (d) => d.startsWith(name + "(") || d === name
+                      );
+                      if (!mdMatching) {
+                        signatureMismatch = true;
+                        break;
+                      }
+                      // If both present but different param str, and not substring match, flag
+                      if (mdMatching && mdMatching !== cs) {
+                        signatureMismatch = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+
+                if (signatureMismatch) {
+                  console.debug(
+                    "[codedoc.syncDocs] signature mismatch detected for",
+                    relPath,
+                    "codeSigs=",
+                    [...codeSigs],
+                    "mdParams=",
+                    [...mdParams]
+                  );
+                }
+                ``;
+                // If code is not newer than markdown, AND markdown seems to have adequate descriptions, AND no annotation/signature mismatch detected, skip
+                if (
+                  latestCodeCommit <= mdCommit &&
+                  !lacksDesc &&
+                  !annotationMismatch &&
+                  !signatureMismatch
+                ) {
+                  console.debug(
+                    "[codedoc.syncDocs] skipping",
+                    relPath,
+                    "no newer code referenced and descriptions present"
+                  );
+                  continue;
+                }
+
+                // Truncate existing content in prompt if extremely large
+                const existingSnippet =
+                  existing.length > 3000
+                    ? existing.slice(0, 3000) + "\n\n...[truncated]"
+                    : existing;
+                const prompt = `You are given an existing markdown file (path: ${relPath}) and the current project structure context.\n\nExisting file content:\n---\n${existingSnippet}\n---\n\nReferenced code files (only include content when necessary):\n${referenced.join(
+                  "\n"
+                )}\n\nPlease update this markdown so that it correctly documents the current codebase based on the referenced code. Only change sections that are inconsistent with the code; preserve formatting and headings where possible. Return the full, updated markdown content only.`;
+                // Build related file snippets to pass to the orchestrator
+                const relatedFilesForAgent = topFiles.map((f) => ({
+                  path: vscode.workspace.asRelativePath(f.uri),
+                  snippet: f.snippet,
+                }));
+                // Enhanced progress tracking for stale documentation update
+                const respForFile = await vscode.window.withProgress(
+                  {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `🔄 Updating stale documentation`,
+                    cancellable: false,
+                  },
+                  async (progress) => {
+                    progress.report({
+                      message: `Analyzing ${relPath}...`,
+                      increment: 20,
+                    });
+
+                    // Add more context to the update process
+                    const enhancedRelatedFiles = topFiles.map((f) => ({
+                      path: vscode.workspace.asRelativePath(f.uri),
+                      snippet: f.snippet,
+                      // Add file metadata for better context
+                      lastModified: f.uri.fsPath,
+                      relevanceScore: f.score || 0,
+                    }));
+
+                    progress.report({
+                      message: `Generating enhanced documentation...`,
+                      increment: 40,
+                    });
+
+                    const result =
+                      await workflowOrchestrator.updateMarkdownFile(
+                        structure,
+                        existing,
+                        enhancedRelatedFiles,
+                        relPath
+                      );
+
+                    progress.report({
+                      message: `Finalizing documentation...`,
+                      increment: 30,
+                    });
+
+                    return result;
+                  }
+                );
+
+                if (!respForFile.success || !respForFile.data) {
+                  console.warn(
+                    "[codedoc.syncDocs] ❌ Failed to update suggestion for",
+                    relPath,
+                    respForFile.error
+                  );
+                  vscode.window.showErrorMessage(
+                    `❌ Failed to update documentation for ${relPath}`,
+                    { detail: respForFile.error }
+                  );
+                  continue;
+                }
+
+                // Show success feedback
+                console.log(
+                  `[codedoc.syncDocs] ✅ Successfully updated documentation for ${relPath}`
+                );
+                vscode.window.showInformationMessage(
+                  `✅ Enhanced documentation updated for ${relPath}`,
+                  { modal: false }
+                );
+                const suggested = respForFile.data as string;
+
+                const sim = similarity(existing, suggested);
+                console.debug(
+                  "[codedoc.syncDocs] file",
+                  relPath,
+                  "similarity",
+                  sim
+                );
+
+                // Threshold: if similarity < 0.75, propose update
+                // Also: always propose update if we detected annotation or signature mismatches
+                if (sim < 0.75 || annotationMismatch || signatureMismatch) {
+                  const replace = `Replace ${relPath}`;
+                  const preview = `Preview ${relPath}`;
+                  const ignore = "Ignore";
+                  const choice = await vscode.window.showInformationMessage(
+                    `${relPath} appears outdated relative to the code. Update this markdown?`,
+                    replace,
+                    preview,
+                    ignore
+                  );
+                  if (choice === preview) {
+                    const doc = await vscode.workspace.openTextDocument({
+                      content: suggested,
+                      language: "markdown",
+                    });
+                    await vscode.window.showTextDocument(doc, {
+                      preview: false,
+                    });
+                    // prompt again for replace
+                    const confirm = await vscode.window.showInformationMessage(
+                      `Replace ${relPath} with suggested content?`,
+                      `Replace ${relPath}`,
+                      "Cancel"
+                    );
+                    if (confirm !== `Replace ${relPath}`) continue;
+                  }
+                  if (choice === replace || (choice === undefined && false)) {
+                    try {
+                      // Backup existing
+                      const backupPath = mdUri.fsPath + `.bak.${Date.now()}`;
+                      const backupUri = vscode.Uri.file(backupPath);
+                      await vscode.workspace.fs.writeFile(
+                        backupUri,
+                        Buffer.from(existing, "utf8")
+                      );
+                      // Write new content
+                      await vscode.workspace.fs.writeFile(
+                        mdUri,
+                        Buffer.from(suggested, "utf8")
+                      );
+                      replacements.push({ uri: mdUri, backup: backupPath });
+                      vscode.window.showInformationMessage(
+                        `${relPath} replaced and backup created.`
+                      );
+                    } catch (e) {
+                      console.error(
+                        "Error replacing markdown",
+                        mdUri.fsPath,
+                        e
+                      );
+                      vscode.window.showErrorMessage(
+                        `Failed to replace ${relPath}. See console for details.`
+                      );
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error("Error checking markdown file", mdUri.fsPath, e);
+              }
+            }
+
+            if (replacements.length) {
+              vscode.window.showInformationMessage(
+                `Updated ${replacements.length} markdown file(s). Backups created.`
+              );
+            } else {
+              vscode.window.showInformationMessage(
+                "No markdown files needed updating."
+              );
+            }
+          } catch (error) {
+            console.error("Error in syncDocs", error);
+            vscode.window.showErrorMessage(`Error syncing docs: ${error}`);
+          }
+        }
+      )
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand("codedoc.visualizeCode", async () => {
+        console.log("codedoc.visualizeCode command executed");
+        try {
+          // Check if API key is configured
+          const config = vscode.workspace.getConfiguration("codedoc");
+          const apiKey = config.get<string>("openaiApiKey");
+
+          if (!apiKey) {
+            const result = await vscode.window.showErrorMessage(
+              "OpenAI API key not configured. Please configure it in the settings.",
+              "Configure Now"
+            );
+
+            if (result === "Configure Now") {
+              console.log("Redirecting to configureExtension command");
+              vscode.commands.executeCommand("codedoc.configureExtension");
+            }
+            return;
+          }
+
+          vscode.window.showInformationMessage("Analyzing code structure...");
+
+          // Parse the workspace to get project structure
+          const structure: ProjectStructure = await javaParser.parseWorkspace();
+
+          // Use the Langchain-based workflow orchestrator with RAG
+          const response = await workflowOrchestrator.generateVisualization(
+            structure,
+            "Generate architecture diagram and visualization"
+          );
+          if (response.success && response.data) {
+            // Update visualization with enhanced data
+            mainProvider.updateVisualization(structure);
+
+            // Also show the AI-generated architecture description if available
+            if (response.textDescription) {
+              mainProvider.showArchitectureDescription(
+                response.textDescription
+              );
+            }
+
+            await vscode.commands.executeCommand("codedoc.mainView.focus");
+            vscode.window.showInformationMessage(
+              "Code visualization updated with AI insights!"
+            );
+          } else {
+            vscode.window.showErrorMessage(
+              response.error || "Failed to generate visualization"
+            );
+          }
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message.includes("Client is not running")
+          ) {
+            vscode.window.showErrorMessage(
+              "Java language server is not ready yet. Please wait a moment and try again."
+            );
+          } else {
+            vscode.window.showErrorMessage(`Error visualizing code: ${error}`);
+          }
+        }
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "codedoc.configureExtension",
+        async () => {
+          console.log("codedoc.configureExtension command executed");
+          const result = await showConfigurationQuickPick();
+          if (result) {
+            vscode.window.showInformationMessage(
+              "Configuration updated successfully!"
+            );
+            openaiService.reinitialize();
+            // Note: We don't need to reinitialize the workflow orchestrator as it uses the config at runtime
+          }
+        }
+      )
+    );
+
+    // Test command for Sentry integration
+    context.subscriptions.push(
+      vscode.commands.registerCommand("codedoc.testSentry", () => {
+        console.log("codedoc.testSentry command executed");
+        sentry.sendTestError();
+        vscode.window.showInformationMessage(
+          "Test error sent to Sentry! Check your Sentry dashboard in a few moments."
+        );
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand("codedoc.generateClassDocs", async () => {
+        console.log("codedoc.generateClassDocs command executed");
+        try {
+          // Check if API key is configured
+          const config = vscode.workspace.getConfiguration("codedoc");
+          const apiKey = config.get<string>("openaiApiKey");
+
+          if (!apiKey) {
+            const result = await vscode.window.showErrorMessage(
+              "OpenAI API key not configured. Please configure it in the settings.",
+              "Configure Now"
+            );
+
+            if (result === "Configure Now") {
+              console.log("Redirecting to configureExtension command");
+              vscode.commands.executeCommand("codedoc.configureExtension");
+            }
+            return;
+          }
+
+          vscode.window.showInformationMessage(
+            "Generating class documentation..."
+          );
+          const editor = vscode.window.activeTextEditor;
+          if (!editor) {
+            vscode.window.showWarningMessage(
+              "No active editor found. Please open a Java file and select some code."
+            );
+            return;
+          }
+
+          let code = "";
+          let fileName = "";
+          if (editor.selection.isEmpty) {
+            code = editor.document.getText();
+            fileName = editor.document.fileName;
+          } else {
+            code = editor.document.getText(editor.selection);
+            fileName = editor.document.fileName;
+          }
+
+          if (!code.trim()) {
+            vscode.window.showWarningMessage(
+              "No code selected or file is empty."
+            );
+            return;
+          }
+
+          // Parse the workspace to find the relevant class
+          const structure: ProjectStructure = await javaParser.parseWorkspace();
+          const className =
+            fileName.split(/[/\\]/).pop()?.replace(".java", "") || "";
+          const javaClass = structure.classes.find(
+            (cls) => cls.name === className
+          );
+
+          if (!javaClass) {
+            vscode.window.showWarningMessage(
+              `Could not find class ${className} in the project.`
+            );
+            return;
+          }
+
+          // Find related classes (dependencies)
+          const relatedClasses = structure.classes.filter(
+            (cls) =>
+              javaClass.dependencies.includes(cls.name) ||
+              structure.relationships.some(
+                (rel) =>
+                  (rel.from === javaClass.name && rel.to === cls.name) ||
+                  (rel.to === javaClass.name && rel.from === cls.name)
+              )
+          );
+
+          // Use the Langchain-based workflow orchestrator for class documentation with RAG
+          const response =
+            await workflowOrchestrator.generateClassDocumentation(
+              javaClass,
+              relatedClasses,
+              `Generate documentation for class ${javaClass.name}`
+            );
+          if (response.success && response.data) {
+            mainProvider.showClassDocumentation(response.data);
+            vscode.window.showInformationMessage(
+              "Class documentation generated successfully!"
+            );
+          } else {
+            vscode.window.showErrorMessage(
+              response.error || "Failed to generate class documentation"
+            );
+          }
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message.includes("Client is not running")
+          ) {
+            vscode.window.showErrorMessage(
+              "Java language server is not ready yet. Please wait a moment and try again."
+            );
+          } else {
+            vscode.window.showErrorMessage(
+              `Error generating class documentation: ${error}`
+            );
+          }
+        }
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "codedoc.exportClassDocs",
+        async (content: string) => {
+          console.log("codedoc.exportClassDocs command executed");
+          if (!content) {
+            vscode.window.showWarningMessage(
+              "No documentation content to export."
+            );
+            return;
+          }
+
+          try {
+            // Get the workspace folder to save the documentation
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+              vscode.window.showErrorMessage("No workspace folder found");
+              return;
+            }
+
+            // Create docs directory if it doesn't exist
+            const docsPath = vscode.Uri.joinPath(workspaceFolder.uri, "docs");
+            try {
+              await vscode.workspace.fs.createDirectory(docsPath);
+            } catch (e) {
+              // Directory might already exist
+            }
+
+            // Create a filename with timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const fileName = `class-documentation-${timestamp}.md`;
+            const fileUri = vscode.Uri.joinPath(docsPath, fileName);
+
+            // Write the content to the file
+            await vscode.workspace.fs.writeFile(
+              fileUri,
+              Buffer.from(content, "utf8")
+            );
+
+            vscode.window.showInformationMessage(
+              `Class documentation saved to ${fileUri.fsPath}`
+            );
+
+            // Optionally open the file after saving
+            const openFile = await vscode.window.showInformationMessage(
+              "Class documentation exported successfully!",
+              "Open File"
+            );
+            if (openFile === "Open File") {
+              const doc = await vscode.workspace.openTextDocument(fileUri);
+              await vscode.window.showTextDocument(doc);
+            }
+          } catch (error) {
+            vscode.window.showErrorMessage(
+              `Error exporting documentation: ${error}`
+            );
+          }
+        }
+      )
+    );
+
+    // Diagram generation commands
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "codedoc.generateDiagram",
+        async (params: any) => {
+          console.log("codedoc.generateDiagram command executed", params);
+          try {
+            const config = vscode.workspace.getConfiguration("codedoc");
+            const apiKey = config.get<string>("openaiApiKey");
+
+            if (!apiKey) {
+              vscode.window.showErrorMessage(
+                "OpenAI API key not configured. Please configure it in the settings."
+              );
+              return;
+            }
+
+            // Generate diagram using the enhanced visualization agent
+            const response = await workflowOrchestrator.generateDiagram(params);
+
+            if (response.success && response.data) {
+              mainProvider.showGeneratedDiagram(response.data);
+            } else {
+              vscode.window.showErrorMessage(
+                response.error || "Failed to generate diagram"
+              );
+            }
+          } catch (error) {
+            console.error("Error generating diagram:", error);
+            vscode.window.showErrorMessage("Failed to generate diagram");
+          }
+        }
+      )
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "codedoc.exportDiagram",
+        async (diagramData: any) => {
+          console.log("codedoc.exportDiagram command executed");
+          try {
+            const fileName = `${
+              diagramData.type || "diagram"
+            }-${Date.now()}.md`;
+            const uri = await vscode.window.showSaveDialog({
+              defaultUri: vscode.Uri.file(fileName),
+              filters: {
+                "Markdown files": ["md"],
+              },
+            });
+
+            if (uri) {
+              await vscode.workspace.fs.writeFile(
+                uri,
+                Buffer.from(diagramData.rawContent, "utf8")
+              );
+              vscode.window.showInformationMessage(
+                `Diagram exported to ${uri.fsPath}`
+              );
+            }
+          } catch (error) {
+            console.error("Error exporting diagram:", error);
+            vscode.window.showErrorMessage("Failed to export diagram");
+          }
+        }
+      )
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "codedoc.previewDiagram",
+        async (diagramData: any) => {
+          console.log("codedoc.previewDiagram command executed");
+          try {
+            // Check if diagramData has the required content
+            if (!diagramData || !diagramData.rawContent) {
+              vscode.window.showErrorMessage(
+                "No diagram content available to preview"
+              );
+              return;
+            }
+
+            // Create temp file in workspace or system temp directory
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            const fileName = `temp-diagram-${Date.now()}.md`;
+
+            let tempUri: vscode.Uri;
+            if (workspaceFolder) {
+              tempUri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
+            } else {
+              // Fallback to system temp directory
+              const os = require("os");
+              const path = require("path");
+              tempUri = vscode.Uri.file(path.join(os.tmpdir(), fileName));
+            }
+
+            await vscode.workspace.fs.writeFile(
+              tempUri,
+              Buffer.from(diagramData.rawContent, "utf8")
+            );
+            const document = await vscode.workspace.openTextDocument(tempUri);
+            await vscode.window.showTextDocument(document);
+
+            vscode.window.showInformationMessage(
+              "Diagram opened in editor. You can copy the content or save it."
+            );
+
+            // Clean up temp file after a delay
+            setTimeout(async () => {
+              try {
+                await vscode.workspace.fs.delete(tempUri);
+              } catch (e) {
+                // Ignore cleanup errors
+                console.log("Could not clean up temp file:", e);
+              }
+            }, 60000); // Increased to 60 seconds
+          } catch (error) {
+            console.error("Error previewing diagram:", error);
+            vscode.window.showErrorMessage(
+              `Failed to preview diagram: ${
+                error instanceof Error ? error.message : "Unknown error"
+              }`
+            );
+          }
+        }
+      )
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "codedoc.saveDiagramToDocs",
+        async (diagramData: any) => {
+          console.log("codedoc.saveDiagramToDocs command executed");
+          try {
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+              vscode.window.showErrorMessage("No workspace folder found");
+              return;
+            }
+
+            const docsPath = vscode.Uri.joinPath(
+              workspaceFolder.uri,
+              "docs",
+              "architecture"
+            );
+
+            // Create docs/architecture directory if it doesn't exist
+            try {
+              await vscode.workspace.fs.createDirectory(docsPath);
+            } catch (e) {
+              // Directory might already exist
+            }
+
+            const fileName = `${
+              diagramData.type || "diagram"
+            }-${Date.now()}.md`;
+            const fileUri = vscode.Uri.joinPath(docsPath, fileName);
+
+            await vscode.workspace.fs.writeFile(
+              fileUri,
+              Buffer.from(diagramData.rawContent, "utf8")
+            );
+            vscode.window.showInformationMessage(
+              `Diagram saved to docs/architecture/${fileName}`
+            );
+
+            // Optionally open the file
+            const openFile = await vscode.window.showInformationMessage(
+              "Diagram saved successfully!",
+              "Open File"
+            );
+            if (openFile === "Open File") {
+              await vscode.window.showTextDocument(fileUri);
+            }
+          } catch (error) {
+            console.error("Error saving diagram to docs:", error);
+            vscode.window.showErrorMessage(
+              "Failed to save diagram to docs folder"
+            );
+          }
+        }
+      )
+    );
+
+    // Add image export command
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "codedoc.exportDiagramAsImage",
+        async (diagramData: any) => {
+          console.log("codedoc.exportDiagramAsImage command executed");
+          console.log("Received diagramData for export:", diagramData);
+
+          // Check if we have the required data
+          if (!diagramData) {
+            console.log("No diagramData provided for export");
+            vscode.window.showErrorMessage(
+              "No diagram data available for export"
+            );
+            return;
+          }
+
+          try {
+            // Check if diagramData has the required content
+            if (!diagramData || !diagramData.rawContent) {
+              vscode.window.showErrorMessage(
+                "No diagram content available to export as image"
+              );
+              return;
+            }
+
+            // Extract the mermaid content from the rawContent
+            let mermaidContent = diagramData.rawContent;
+            const mermaidMatch = diagramData.rawContent.match(
+              /```mermaid([\s\S]*?)```/
+            );
+            if (mermaidMatch) {
+              mermaidContent = mermaidMatch[1].trim();
+            }
+
+            // Create SVG from mermaid using mermaid CLI approach
+            const svgContent = await convertMermaidToSvg(mermaidContent);
+
+            if (!svgContent) {
+              vscode.window.showErrorMessage(
+                "Failed to convert diagram to image"
+              );
+              return;
+            }
+
+            const fileName = `${
+              diagramData.type || "diagram"
+            }-${Date.now()}.svg`;
+            const uri = await vscode.window.showSaveDialog({
+              defaultUri: vscode.Uri.file(fileName),
+              filters: {
+                "SVG files": ["svg"],
+                "PNG files": ["png"],
+              },
+            });
+
+            if (uri) {
+              // For PNG conversion, we would need additional processing
+              if (uri.path.endsWith(".png")) {
+                vscode.window.showErrorMessage(
+                  "PNG export not yet implemented. Please export as SVG for now."
+                );
+                return;
+              }
+
+              await vscode.workspace.fs.writeFile(
+                uri,
+                Buffer.from(svgContent, "utf8")
+              );
+              vscode.window.showInformationMessage(
+                `Diagram exported as image to ${uri.fsPath}`
+              );
+            }
+          } catch (error) {
+            console.error("Error exporting diagram as image:", error);
+            vscode.window.showErrorMessage(
+              `Failed to export diagram as image: ${
+                error instanceof Error ? error.message : "Unknown error"
+              }`
+            );
+          }
+        }
+      )
+    );
+
+    // Add open as image command
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "codedoc.openDiagramAsImage",
+        async (diagramData: any) => {
+          console.log("codedoc.openDiagramAsImage command executed");
+          console.log("Received diagramData for opening:", diagramData);
+
+          // Check if we have the required data
+          if (!diagramData) {
+            console.log("No diagramData provided for opening");
+            vscode.window.showErrorMessage(
+              "No diagram data available for opening"
+            );
+            return;
+          }
+
+          try {
+            // Check if diagramData has the required content
+            if (!diagramData || !diagramData.rawContent) {
+              vscode.window.showErrorMessage(
+                "No diagram content available to open as image"
+              );
+              return;
+            }
+
+            // Extract the mermaid content from the rawContent
+            let mermaidContent = diagramData.rawContent;
+            const mermaidMatch = diagramData.rawContent.match(
+              /```mermaid([\s\S]*?)```/
+            );
+            if (mermaidMatch) {
+              mermaidContent = mermaidMatch[1].trim();
+            }
+
+            // Create SVG from mermaid
+            const svgContent = await convertMermaidToSvg(mermaidContent);
+
+            if (!svgContent) {
+              vscode.window.showErrorMessage(
+                "Failed to convert diagram to image"
+              );
+              return;
+            }
+
+            // Create temp file
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            const fileName = `temp-diagram-${Date.now()}.svg`;
+
+            let tempUri: vscode.Uri;
+            if (workspaceFolder) {
+              tempUri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
+            } else {
+              // Fallback to system temp directory
+              const os = require("os");
+              const path = require("path");
+              tempUri = vscode.Uri.file(path.join(os.tmpdir(), fileName));
+            }
+
+            await vscode.workspace.fs.writeFile(
+              tempUri,
+              Buffer.from(svgContent, "utf8")
+            );
+            // Use the preview command to open the SVG as an image instead of text
+            await vscode.commands.executeCommand("vscode.open", tempUri, {
+              preview: true,
+            });
+
+            vscode.window.showInformationMessage(
+              "Diagram opened as SVG image in preview."
+            );
+
+            // Clean up temp file after a delay
+            setTimeout(async () => {
+              try {
+                await vscode.workspace.fs.delete(tempUri);
+              } catch (e) {
+                // Ignore cleanup errors
+                console.log("Could not clean up temp file:", e);
+              }
+            }, 60000); // 60 seconds
+          } catch (error) {
+            console.error("Error opening diagram as image:", error);
+            vscode.window.showErrorMessage(
+              `Failed to open diagram as image: ${
+                error instanceof Error ? error.message : "Unknown error"
+              }`
+            );
+          }
+        }
+      )
+    );
+
+    // Add chat message processing command
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "codedoc.processChatMessage",
+        async (message: string) => {
+          console.log(
+            "codedoc.processChatMessage command executed with message:",
+            message
+          );
+          try {
+            // Check if API key is configured
+            const config = vscode.workspace.getConfiguration("codedoc");
+            const apiKey = config.get<string>("openaiApiKey");
+
+            if (!apiKey) {
+              const result = await vscode.window.showErrorMessage(
+                "OpenAI API key not configured. Please configure it in the settings.",
+                "Configure Now"
+              );
+
+              if (result === "Configure Now") {
+                console.log("Redirecting to configureExtension command");
+                vscode.commands.executeCommand("codedoc.configureExtension");
+              }
+              return;
+            }
+
+            // Parse the workspace to get project structure for context
+            const structure: ProjectStructure =
+              await javaParser.parseWorkspace();
+            console.log("Parsed project structure:", structure);
+
+            // Use the Langchain-based workflow orchestrator with RAG for chat
+            const response = await workflowOrchestrator.handleChatRequest(
+              message,
+              { projectStructure: structure }
+            );
+            console.log("Workflow orchestrator response:", response);
+
+            if (response.success && response.data) {
+              mainProvider.showChatResponse(response); // Pass the entire response, not just response.data
+            } else {
+              mainProvider.showChatError(
+                response.error || "Failed to process chat message"
+              );
+            }
+          } catch (error) {
+            console.error("Error processing chat message:", error);
+            mainProvider.showChatError(
+              `Error processing chat message: ${error}`
+            );
+          }
+        }
+      )
+    );
+
+    vscode.commands.executeCommand(
+      "setContext",
+      "codedoc.chatViewEnabled",
+      true
+    );
+
+    const watcher = vscode.workspace.createFileSystemWatcher("**/*.java");
+    // watcher.onDidChange(() => {
+    //     // Debounce the parsing to avoid too frequent updates
+    //     setTimeout(async () => {
+    //         try {
+    //             await vscode.commands.executeCommand('codedoc.visualizeCode');
+    //         } catch (error) {
+    //             console.error('Error during auto-parse:', error);
+    //         }
+    //     }, 2000);
+    // });
+    context.subscriptions.push(watcher);
+
+    console.log("CodeDoc extension activation completed");
 
     // Start Git remote poller to notify about remote updates
     try {
@@ -1426,19 +1464,23 @@ export function activate(context: vscode.ExtensionContext) {
       context.subscriptions.push({ dispose: () => gitPoller.stop() });
     } catch (e) {
       console.error("Failed to start git poller", e);
-      sentry.captureException(e as Error, { context: 'git_poller_initialization' });
+      sentry.captureException(e as Error, {
+        context: "git_poller_initialization",
+      });
     }
 
-    sentry.addBreadcrumb('Extension activation completed successfully', 'lifecycle');
+    sentry.addBreadcrumb(
+      "Extension activation completed successfully",
+      "lifecycle"
+    );
     console.log("CodeDoc services initialized successfully");
-
   } catch (error) {
     console.error("Failed to activate CodeDoc extension:", error);
     sentry.captureException(error as Error, {
-      context: 'extension_activation',
-      timestamp: new Date().toISOString()
+      context: "extension_activation",
+      timestamp: new Date().toISOString(),
     });
-    
+
     vscode.window.showErrorMessage(
       "Failed to activate CodeDoc extension. Please check the console for details."
     );
@@ -1448,12 +1490,12 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
   console.log("CodeDoc extension is deactivated");
-  
+
   const sentry = SentryService.getInstance();
-  sentry.addBreadcrumb('Extension deactivated', 'lifecycle');
-  
+  sentry.addBreadcrumb("Extension deactivated", "lifecycle");
+
   // Flush any pending Sentry events before deactivation
-  sentry.flush().catch(error => {
+  sentry.flush().catch((error) => {
     console.error("Failed to flush Sentry events:", error);
   });
 }

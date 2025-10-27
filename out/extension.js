@@ -48,7 +48,7 @@ function activate(context) {
     // Initialize Sentry for error monitoring
     const sentry = sentry_service_1.SentryService.getInstance();
     sentry.initialize(context);
-    sentry.addBreadcrumb('Extension activation started', 'lifecycle');
+    sentry.addBreadcrumb("Extension activation started", "lifecycle");
     console.log("CodeDoc extension activation started");
     try {
         const javaParser = new java_parser_1.JavaParser();
@@ -72,7 +72,7 @@ function activate(context) {
         }));
         context.subscriptions.push(vscode.commands.registerCommand("codedoc.generateDocs", async () => {
             console.log("codedoc.generateDocs command executed");
-            sentry.addBreadcrumb('Generate docs command executed', 'user_action');
+            sentry.addBreadcrumb("Generate docs command executed", "user_action");
             try {
                 // Check if API key is configured
                 const config = vscode.workspace.getConfiguration("codedoc");
@@ -100,8 +100,8 @@ function activate(context) {
             }
             catch (error) {
                 sentry.captureException(error, {
-                    context: 'generate_docs_command',
-                    timestamp: new Date().toISOString()
+                    context: "generate_docs_command",
+                    timestamp: new Date().toISOString(),
                 });
                 if (error instanceof Error &&
                     error.message.includes("Client is not running")) {
@@ -270,7 +270,9 @@ function activate(context) {
                         // Determine related code files by extracting tokens from the markdown and searching the codebase
                         const relPath = vscode.workspace.asRelativePath(mdUri);
                         const tokens = extractTokensFromMarkdown(existing);
-                        const codeGlobs = ["**/*.{java,js,ts,jsx,tsx,py,go,cs,cpp,c,kt}"];
+                        const codeGlobs = [
+                            "**/*.{java,js,ts,jsx,tsx,py,go,cs,cpp,c,kt}",
+                        ];
                         const candidateUris = [];
                         for (const g of codeGlobs) {
                             const found = await vscode.workspace.findFiles(g, "**/node_modules/**", 200);
@@ -495,11 +497,11 @@ function activate(context) {
                         const respForFile = await vscode.window.withProgress({
                             location: vscode.ProgressLocation.Notification,
                             title: `🔄 Updating stale documentation`,
-                            cancellable: false
+                            cancellable: false,
                         }, async (progress) => {
                             progress.report({
                                 message: `Analyzing ${relPath}...`,
-                                increment: 20
+                                increment: 20,
                             });
                             // Add more context to the update process
                             const enhancedRelatedFiles = topFiles.map((f) => ({
@@ -507,16 +509,16 @@ function activate(context) {
                                 snippet: f.snippet,
                                 // Add file metadata for better context
                                 lastModified: f.uri.fsPath,
-                                relevanceScore: f.score || 0
+                                relevanceScore: f.score || 0,
                             }));
                             progress.report({
                                 message: `Generating enhanced documentation...`,
-                                increment: 40
+                                increment: 40,
                             });
                             const result = await workflowOrchestrator.updateMarkdownFile(structure, existing, enhancedRelatedFiles, relPath);
                             progress.report({
                                 message: `Finalizing documentation...`,
-                                increment: 30
+                                increment: 30,
                             });
                             return result;
                         });
@@ -543,7 +545,9 @@ function activate(context) {
                                     content: suggested,
                                     language: "markdown",
                                 });
-                                await vscode.window.showTextDocument(doc, { preview: false });
+                                await vscode.window.showTextDocument(doc, {
+                                    preview: false,
+                                });
                                 // prompt again for replace
                                 const confirm = await vscode.window.showInformationMessage(`Replace ${relPath} with suggested content?`, `Replace ${relPath}`, "Cancel");
                                 if (confirm !== `Replace ${relPath}`)
@@ -1030,16 +1034,18 @@ function activate(context) {
         }
         catch (e) {
             console.error("Failed to start git poller", e);
-            sentry.captureException(e, { context: 'git_poller_initialization' });
+            sentry.captureException(e, {
+                context: "git_poller_initialization",
+            });
         }
-        sentry.addBreadcrumb('Extension activation completed successfully', 'lifecycle');
+        sentry.addBreadcrumb("Extension activation completed successfully", "lifecycle");
         console.log("CodeDoc services initialized successfully");
     }
     catch (error) {
         console.error("Failed to activate CodeDoc extension:", error);
         sentry.captureException(error, {
-            context: 'extension_activation',
-            timestamp: new Date().toISOString()
+            context: "extension_activation",
+            timestamp: new Date().toISOString(),
         });
         vscode.window.showErrorMessage("Failed to activate CodeDoc extension. Please check the console for details.");
         throw error;
@@ -1048,9 +1054,9 @@ function activate(context) {
 function deactivate() {
     console.log("CodeDoc extension is deactivated");
     const sentry = sentry_service_1.SentryService.getInstance();
-    sentry.addBreadcrumb('Extension deactivated', 'lifecycle');
+    sentry.addBreadcrumb("Extension deactivated", "lifecycle");
     // Flush any pending Sentry events before deactivation
-    sentry.flush().catch(error => {
+    sentry.flush().catch((error) => {
         console.error("Failed to flush Sentry events:", error);
     });
 }
