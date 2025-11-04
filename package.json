@@ -66,6 +66,11 @@
         "command": "codedoc.testBrowserError",
         "title": "CodeDoc: Test Browser Error",
         "icon": "$(browser)"
+      },
+      {
+        "command": "codedoc.checkPuppeteer",
+        "title": "CodeDoc: Check Chrome Browser",
+        "icon": "$(search)"
       }
     ],
     "views": {
