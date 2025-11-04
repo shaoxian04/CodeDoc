@@ -71,6 +71,11 @@
         "command": "codedoc.checkPuppeteer",
         "title": "CodeDoc: Check Chrome Browser",
         "icon": "$(search)"
+      },
+      {
+        "command": "codedoc.puppeteerTroubleshoot",
+        "title": "CodeDoc: Troubleshoot Chrome Installation",
+        "icon": "$(tools)"
       }
     ],
     "views": {

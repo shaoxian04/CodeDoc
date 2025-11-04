@@ -732,9 +732,9 @@ export function activate(context: vscode.ExtensionContext) {
                 let signatureMismatch = false;
                 if (codeSigs.size > 0) {
                   // If markdown mentions no signatures at all, and code has signatures, we may still want to update if descriptions are short
-                  if (mdParams.size === 0 && lacksDesc)
-                    {signatureMismatch = true;}
-                  else {
+                  if (mdParams.size === 0 && lacksDesc) {
+                    signatureMismatch = true;
+                  } else {
                     // If any code signature name appears with different parameter list in markdown, flag
                     for (const cs of codeSigs) {
                       // extract method name
@@ -1062,10 +1062,19 @@ export function activate(context: vscode.ExtensionContext) {
         terminal.show();
         terminal.sendText("npx puppeteer browsers install chrome");
 
-        vscode.window.showInformationMessage(
+        // Show installation progress and offer verification
+        const result = await vscode.window.showInformationMessage(
           "Installing Chrome browser for diagram export. This may take a few minutes...",
+          "Check Status After Install",
           "OK"
         );
+
+        if (result === "Check Status After Install") {
+          // Wait a bit then check status
+          setTimeout(async () => {
+            await vscode.commands.executeCommand("codedoc.checkPuppeteer");
+          }, 2000);
+        }
       })
     );
 
@@ -1078,21 +1087,37 @@ export function activate(context: vscode.ExtensionContext) {
           const isAvailable = await checkPuppeteerAvailability();
 
           if (isAvailable) {
-            vscode.window.showInformationMessage(
-              "✅ Chrome browser is available! 'Open as Image' feature is ready to use.",
-              "OK"
-            );
+            vscode.window
+              .showInformationMessage(
+                "✅ Chrome browser is available! 'Open as Image' feature is ready to use.",
+                "Test Image Export",
+                "OK"
+              )
+              .then((choice) => {
+                if (choice === "Test Image Export") {
+                  vscode.window.showInformationMessage(
+                    "Generate a diagram first, then try the 'Open as Image' button to test the feature.",
+                    "OK"
+                  );
+                }
+              });
           } else {
             const result = await vscode.window.showWarningMessage(
-              "❌ Chrome browser not found. 'Open as Image' feature is not available.",
-              "Install Chrome",
-              "Learn More",
+              "❌ Chrome browser still not found. This can happen if:\n" +
+                "• Installation is still in progress\n" +
+                "• VS Code needs to be restarted\n" +
+                "• Installation failed or was cancelled",
+              "Restart VS Code",
+              "Reinstall Chrome",
+              "Troubleshoot",
               "OK"
             );
 
-            if (result === "Install Chrome") {
+            if (result === "Restart VS Code") {
+              vscode.commands.executeCommand("workbench.action.reloadWindow");
+            } else if (result === "Reinstall Chrome") {
               await promptPuppeteerInstallation(context);
-            } else if (result === "Learn More") {
+            } else if (result === "Troubleshoot") {
               vscode.env.openExternal(
                 vscode.Uri.parse(
                   "https://pptr.dev/troubleshooting#chrome-headless-doesnt-launch-on-windows"
@@ -1109,6 +1134,52 @@ export function activate(context: vscode.ExtensionContext) {
           );
         }
       })
+    );
+
+    // Command to show alternative Puppeteer installation methods
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "codedoc.puppeteerTroubleshoot",
+        async () => {
+          console.log("codedoc.puppeteerTroubleshoot command executed");
+
+          const result = await vscode.window.showInformationMessage(
+            "Puppeteer Chrome Installation Troubleshooting",
+            {
+              modal: true,
+              detail:
+                "Chrome may be installed but VS Code can't access it due to user context differences.\n\n" +
+                "COMMON ISSUE: Chrome installed for different user\n" +
+                "• Terminal shows: C:\\Users\\user\\.cache\\puppeteer\\chrome\\...\n" +
+                "• VS Code looks in: C:\\Users\\[your-username]\\.cache\\puppeteer\\...\n\n" +
+                "SOLUTIONS:\n" +
+                "1. Restart VS Code completely (most common fix)\n" +
+                "2. Run installation in VS Code's integrated terminal:\n" +
+                "   • Use Terminal → New Terminal in VS Code\n" +
+                "   • Run: npx puppeteer browsers install chrome\n\n" +
+                "3. Check installation location:\n" +
+                "   • Run: npx puppeteer browsers list\n" +
+                "   • Note the path shown\n\n" +
+                "4. Alternative: Use other export options\n" +
+                "   • 'Export as .md' works without Chrome\n" +
+                "   • 'Copy' button also works",
+            },
+            "Open Terminal",
+            "Check Status",
+            "Learn More"
+          );
+
+          if (result === "Open Terminal") {
+            vscode.commands.executeCommand("workbench.action.terminal.new");
+          } else if (result === "Check Status") {
+            vscode.commands.executeCommand("codedoc.checkPuppeteer");
+          } else if (result === "Learn More") {
+            vscode.env.openExternal(
+              vscode.Uri.parse("https://pptr.dev/troubleshooting")
+            );
+          }
+        }
+      )
     );
 
     // Test command to simulate browser error
@@ -2111,6 +2182,7 @@ async function convertMermaidToSvg(
           "Failed to export diagram as image. Chrome browser not found.",
           "Install Chrome",
           "Check Status",
+          "Troubleshoot",
           "Learn More"
         )
         .then((selection) => {
@@ -2118,6 +2190,8 @@ async function convertMermaidToSvg(
             vscode.commands.executeCommand("codedoc.installBrowser");
           } else if (selection === "Check Status") {
             vscode.commands.executeCommand("codedoc.checkPuppeteer");
+          } else if (selection === "Troubleshoot") {
+            vscode.commands.executeCommand("codedoc.puppeteerTroubleshoot");
           } else if (selection === "Learn More") {
             vscode.env.openExternal(
               vscode.Uri.parse(
@@ -2203,7 +2277,36 @@ async function checkPuppeteerAvailability(): Promise<boolean> {
     const puppeteer = await import("puppeteer");
     console.log("✅ [PUPPETEER-CHECK] Puppeteer library imported successfully");
 
+    // Check if we can find Chrome in common locations
+    const os = require("os");
+    const path = require("path");
+    const fs = require("fs");
+
+    const possibleCachePaths = [
+      path.join(os.homedir(), ".cache", "puppeteer"),
+      path.join(os.homedir(), ".puppeteer"),
+      path.join(process.env.APPDATA || os.homedir(), "puppeteer"),
+      "C:\\Users\\user\\.cache\\puppeteer", // From your terminal output
+    ];
+
+    console.log("🔍 [PUPPETEER-CHECK] Checking possible Chrome locations:");
+    for (const cachePath of possibleCachePaths) {
+      console.log(`   📁 ${cachePath}`);
+      try {
+        if (fs.existsSync(cachePath)) {
+          const chromeDir = path.join(cachePath, "chrome");
+          if (fs.existsSync(chromeDir)) {
+            const versions = fs.readdirSync(chromeDir);
+            console.log(`   ✅ Found Chrome versions: ${versions.join(", ")}`);
+          }
+        }
+      } catch (e) {
+        console.log(`   ❌ Cannot access ${cachePath}`);
+      }
+    }
+
     // Try to launch browser to verify it's actually available
+    console.log("🚀 [PUPPETEER-CHECK] Attempting to launch browser...");
     const browser = await puppeteer.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -2219,6 +2322,7 @@ async function checkPuppeteerAvailability(): Promise<boolean> {
       "❌ [PUPPETEER-CHECK] Puppeteer not available:",
       error instanceof Error ? error.message : "Unknown error"
     );
+    console.log("❌ [PUPPETEER-CHECK] Error details:", error);
     return false;
   }
 }
@@ -2270,12 +2374,22 @@ async function promptPuppeteerInstallation(
         terminal.show();
         terminal.sendText("npx puppeteer browsers install chrome");
 
-        // Show follow-up message
+        // Show follow-up message with restart option
         setTimeout(() => {
-          vscode.window.showInformationMessage(
-            "Chrome installation started. Please wait for completion, then restart VS Code to use 'Open as Image' feature.",
-            "OK"
-          );
+          vscode.window
+            .showInformationMessage(
+              "Chrome installation started. After installation completes, you may need to restart VS Code.",
+              "Restart VS Code",
+              "Check Status",
+              "OK"
+            )
+            .then((choice) => {
+              if (choice === "Restart VS Code") {
+                vscode.commands.executeCommand("workbench.action.reloadWindow");
+              } else if (choice === "Check Status") {
+                vscode.commands.executeCommand("codedoc.checkPuppeteer");
+              }
+            });
         }, 1000);
       }
       break;
