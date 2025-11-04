@@ -733,7 +733,7 @@ export function activate(context: vscode.ExtensionContext) {
                 if (codeSigs.size > 0) {
                   // If markdown mentions no signatures at all, and code has signatures, we may still want to update if descriptions are short
                   if (mdParams.size === 0 && lacksDesc)
-                    signatureMismatch = true;
+                    {signatureMismatch = true;}
                   else {
                     // If any code signature name appears with different parameter list in markdown, flag
                     for (const cs of codeSigs) {
